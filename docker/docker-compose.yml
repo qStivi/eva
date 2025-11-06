@@ -1,7 +1,9 @@
 version: '3.8'
+
 services:
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
+    container_name: eva_postgres
     environment:
       POSTGRES_DB: character_companion
       POSTGRES_USER: user
@@ -10,60 +12,42 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d character_companion"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
+    container_name: eva_redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   chromadb:
     image: chromadb/chroma:latest
+    container_name: eva_chromadb
     ports:
       - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
-```
-
-### 4. Workflow with Claude Code
-
-**Best Practice**:
-1. **You prepare**: Create folder structure, add docs, create starter files
-2. **Claude Code builds**: Give it specific tasks referencing the docs
-3. **You review**: Check the code, test it, adjust if needed
-4. **Iterate**: Next task builds on previous work
-
-**How to point Claude Code to docs**:
-```
-"Implement the FastAPI WebSocket conversation endpoint as described 
-in docs/design-document.md under 'Phase 1'. Use the two-track memory 
-architecture explained in docs/technical-architecture.html."
-```
-
-### 5. Git Setup
-
-Also recommended:
-
-**`.gitignore`**:
-```
-# Python
-__pycache__/
-*.py[cod]
-venv/
-.env
-
-# Databases
-*.db
-*.sqlite
-
-# LLM models (too large)
-*.gguf
-*.bin
-
-# IDEs
-.vscode/
-.idea/
-
-# Flutter
-client/build/
-client/.flutter-plugins
+  redis_data:
+  chroma_data:

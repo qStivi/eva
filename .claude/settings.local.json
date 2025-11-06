@@ -6,7 +6,18 @@
       "Bash(git init:*)",
       "Bash(git config:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(cat:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker:*)",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\steph\\notify-simple.ps1\" -Message \"Test notification\")",
+      "Bash(redis-cli ping:*)",
+      "Bash(curl:*)",
+      "Bash(PGPASSWORD=pass psql:*)",
+      "Bash(python -m venv:*)",
+      "Bash(pip install:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(pytest:*)"
     ],
     "deny": [],
     "ask": []
