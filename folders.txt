@@ -1,0 +1,14 @@
+eva/
+├── docs/                          # ← Put your design documents here
+│   ├── design-document.md         # Main design doc
+│   ├── technical-architecture.html # Technical reference
+│   └── README.md                  # Quick start for Claude Code
+├── server/                        # Python backend (Claude Code works here)
+│   ├── app/
+│   ├── tests/
+│   ├── requirements.txt
+│   └── .env.example
+├── client/                        # Flutter app (Claude Code works here)
+│   └── (will be created by Flutter init)
+└── docker/                        # Development containers
+    └── docker-compose.yml

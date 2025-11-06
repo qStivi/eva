@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+ENV/
+
+# Environment
+.env
+.env.local
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# LLM Models (too large for git)
+*.gguf
+*.bin
+*.safetensors
+models/
+checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+app.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Flutter
+client/build/
+client/.flutter-plugins
+client/.flutter-plugins-dependencies
+client/.dart_tool/
+client/.packages
+client/pubspec.lock
+client/ios/Pods/
+client/ios/.symlinks/
+client/android/.gradle/
+client/android/local.properties
+
+# Docker volumes (keep compose file)
+postgres_data/
+redis_data/
+chroma_data/
