@@ -44,6 +44,56 @@
 
 ---
 
+## Phase 1: Basic LLM Integration
+
+**Estimated**: 3-4 hours
+**Actual**: [In Progress]
+
+**Phase 1 Start**: 22:45
+
+### Tasks
+- [x] 1.1 LLM Module Structure - Actual: ~10 min
+- [x] 1.2 Install LLM library - Actual: ~25 min (tried llama-cpp-python, ctransformers, settled on transformers)
+- [x] 1.3 Model Loader - Actual: ~20 min (initial implementation with ctransformers, will update)
+- [x] 1.4 Character Prompts - Actual: ~15 min
+- [x] 1.5 Generation Endpoint - Actual: ~20 min
+- [ ] 1.6 Testing - Est: 30 min (blocked on library issue, switching to transformers)
+
+### Technical Decision: LLM Library Selection
+
+**Decision Date**: 2025-11-07
+
+**Problem**:
+- llama-cpp-python (original plan) requires C++ compiler (Visual Studio Build Tools) on Windows
+- ctransformers (attempted workaround) fails to load Phi-3 GGUF model with cryptic errors
+
+**Decision**: Use `transformers` library instead
+
+**Reasoning**:
+1. **Alignment with design**: Transformers is documented as the "fallback" option in design-document.md
+2. **Development priority**: Getting it working is more important than optimization in Phase 1
+3. **No compilation needed**: Pure Python, no C++ build toolchain required
+4. **Better debugging**: Clearer error messages, better documentation
+5. **Hardware is sufficient**: 48GB RAM + GTX 1050 Ti can handle the overhead
+6. **Single user development**: Performance difference negligible vs multi-user production
+
+**Trade-offs Accepted**:
+- Heavier dependencies (PyTorch + transformers vs llama.cpp)
+- Slightly slower inference (Python overhead vs C++)
+- Higher memory usage (less optimized than C++ implementation)
+
+**Future Optimization Path**:
+- Can revisit llama.cpp for production deployment
+- Performance matters most for multi-user or resource-constrained scenarios
+- Phase 1 goal: working LLM integration, not optimal performance
+
+**Files Affected**:
+- `server/requirements.txt` - Will change from ctransformers to transformers
+- `server/app/llm/loader.py` - Will rewrite for transformers API
+- `server/app/llm/config.py` - May need parameter adjustments
+
+---
+
 ## Time Tracking Notes
 
 - Include both "doing" and "waiting" time (e.g., pip install, docker pull)

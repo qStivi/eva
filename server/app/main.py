@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from app.config import settings
+from app.routes import generate
 
 # Configure logging
 logging.basicConfig(
@@ -53,6 +54,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API routers
+app.include_router(generate.router)
 
 
 @app.get("/health")

@@ -91,10 +91,16 @@ pytest
 ### Tasks
 
 #### 1.1 LLM Module Structure
-- [ ] Create `server/app/llm/__init__.py`
-- [ ] Create `server/app/llm/config.py` (model configuration)
-- [ ] Create `server/app/llm/loader.py` (model loading with llama-cpp-python)
-- [ ] Create `server/app/llm/prompts.py` (prompt templates for Eva character)
+- [x] Create `server/app/llm/__init__.py`
+- [x] Create `server/app/llm/config.py` (model configuration)
+- [x] Create `server/app/llm/loader.py` (model loading - **using transformers library**, see Technical Decision below)
+- [x] Create `server/app/llm/prompts.py` (prompt templates for Eva character)
+
+**Technical Decision (2025-11-07)**: Using `transformers` library instead of `llama-cpp-python`
+- Original plan: llama-cpp-python (requires C++ compiler on Windows)
+- Attempted: ctransformers (failed to load Phi-3 model)
+- Final choice: transformers (documented fallback option, better for development)
+- See TIME_LOG.md for detailed reasoning
 
 #### 1.2 Model Loading
 - [ ] Implement model loader with lazy initialization

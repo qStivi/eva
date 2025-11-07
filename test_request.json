@@ -1,0 +1,5 @@
+{
+  "prompt": "Hello! How are you?",
+  "max_tokens": 50,
+  "use_character": true
+}
