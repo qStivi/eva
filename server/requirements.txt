@@ -6,12 +6,14 @@ python-multipart>=0.0.6
 
 # Database
 sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.9
+psycopg2-binary>=2.9.9  # Sync PostgreSQL driver
+asyncpg>=0.29.0  # Async PostgreSQL driver
 alembic>=1.12.0
 redis>=5.0.0
 
 # Vector Database
 chromadb>=0.4.0
+sentence-transformers>=2.2.0  # For semantic embeddings
 
 # LLM
 transformers>=4.36.0

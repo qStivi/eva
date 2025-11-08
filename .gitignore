@@ -36,8 +36,10 @@ ENV/
 *.gguf
 *.bin
 *.safetensors
-models/
-checkpoints/
+/models/
+/checkpoints/
+server/llm_models/
+server/checkpoints/
 
 # IDEs
 .vscode/

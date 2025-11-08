@@ -12,8 +12,8 @@ Text-first design, voice optional. Self-hosted, privacy-focused.
 
 \## Development Status
 
-**Updated**: 2025-11-06
-**Current Phase**: Phase 0 - Foundation & Infrastructure
+**Updated**: 2025-11-07
+**Current Phase**: Phase 2 - Database Schema & Models
 **Approach**: Claude Code handles implementation, developer reviews and guides
 
 See `../IMPLEMENTATION_PLAN.md` for detailed phase breakdown and tasks.
@@ -22,13 +22,13 @@ See `../IMPLEMENTATION_PLAN.md` for detailed phase breakdown and tasks.
 
 \## Tech Stack
 
-\- Backend: Python 3.10+, FastAPI, llama-cpp-python
+\- Backend: Python 3.10+, FastAPI, transformers
 
 \- Databases: PostgreSQL, Redis, ChromaDB
 
 \- Frontend: Flutter 3.0+
 
-\- LLM: Llama 3.x via llama.cpp
+\- LLM: Phi-3 (microsoft/Phi-3-mini-4k-instruct) via HuggingFace transformers
 
 
 

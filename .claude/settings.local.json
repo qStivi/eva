@@ -46,7 +46,8 @@
       "Bash(findstr:*)",
       "Bash(pip uninstall:*)",
       "Bash(timeout 3 ping:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(jobs)"
     ],
     "deny": [],
     "ask": []

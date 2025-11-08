@@ -286,3 +286,5 @@ Remember the character-first philosophy even when discussing implementation:
 ✅ "Eva will naturally notice important moments and jot them down"
 
 This mindset keeps the implementation aligned with the vision.
+- Please remember to check and update design-document.md, technical-architecture.html, README.md, TIME_LOG.md and IMPLEMENTATION_PLAN.md regularly and especially before and after each phase.
+- Also don't forget to commit regularly.
