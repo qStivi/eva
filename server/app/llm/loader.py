@@ -104,9 +104,9 @@ class LLMLoader:
                 quantization_config=quantization_config,
                 device_map="auto" if device == "cuda" else None,
                 trust_remote_code=True,  # Phi-3 requires this
-                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                dtype=torch.float16 if device == "cuda" else torch.float32,
                 low_cpu_mem_usage=True,
-                attn_implementation="eager",  # Fix for Phi-3 cache compatibility issue
+                attn_implementation="eager",  # Fix for Phi-3 attention compatibility
             )
 
             # Move to device if CPU
@@ -202,7 +202,7 @@ class LLMLoader:
                 "do_sample": temperature > 0,  # Use sampling if temp > 0
                 "pad_token_id": self.tokenizer.pad_token_id,
                 "eos_token_id": self.tokenizer.eos_token_id,
-                "use_cache": True,  # Enable KV cache for fast generation
+                "use_cache": False,  # Disabled due to Phi-3 cache compatibility issue
             }
 
             if stream:
