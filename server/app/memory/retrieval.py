@@ -14,7 +14,7 @@ Key features:
 """
 
 from typing import List, Dict, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -104,7 +104,7 @@ class MemoryRetrieval:
             "conversation_id": str(conversation_id),
             "role": turn.role.value,
             "sequence": turn.sequence,
-            "timestamp": turn.timestamp.isoformat() if turn.timestamp else datetime.now().isoformat(),
+            "timestamp": turn.timestamp.isoformat() if turn.timestamp else datetime.now(timezone.utc).isoformat(),
             "importance_score": importance,
             "memory_type": memory_type,
         }
@@ -189,7 +189,7 @@ class MemoryRetrieval:
 
             # Filter by recency if requested
             if filter_by_recency and created_at:
-                cutoff = datetime.now() - timedelta(days=recency_days)
+                cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
                 if created_at < cutoff:
                     continue
 
@@ -303,7 +303,7 @@ class MemoryRetrieval:
             # Recency factor (newer memories slightly preferred)
             recency_factor = 0.5
             if created_at:
-                days_old = (datetime.now() - created_at).days
+                days_old = (datetime.now(timezone.utc) - created_at).days
                 # Exponential decay: 1.0 at day 0, 0.5 at 30 days, 0.25 at 60 days
                 recency_factor = 1.0 / (1.0 + (days_old / 30.0))
 

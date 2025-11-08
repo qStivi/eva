@@ -14,7 +14,7 @@ Key features:
 """
 
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -224,7 +224,7 @@ class ContextManager:
         Returns:
             Formatted temporal context string
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Day of week
         day_name = now.strftime("%A")
