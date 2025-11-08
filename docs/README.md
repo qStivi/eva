@@ -44,6 +44,121 @@ See `../IMPLEMENTATION_PLAN.md` for detailed phase breakdown and tasks.
 
 
 
+\## How It Works: Two-Track Memory System
+
+The defining innovation of this system is the **two-track architecture** that enables perfect memory without cluttering conversations.
+
+\### The Problem with Traditional RAG
+
+Traditional retrieval-augmented generation systems inject context directly into the conversation history:
+
+```
+User: I'm working on an AI project.
+Assistant: Tell me about it!
+Context: User is working on an AI project ← DUPLICATE!
+User: It uses two-track memory.
+Context: Project uses two-track memory ← DUPLICATE!
+```
+
+**Result**: Wasted tokens, bloated context, less room for actual conversation.
+
+\### Our Solution: Two Separate Tracks
+
+**Track 1 (Conversation)**: Clean, natural dialogue stored in PostgreSQL
+```
+User: Hi Eva! I'm working on a new AI project.
+Assistant: That sounds exciting! What kind of AI project?
+User: A character companion that journals.
+Assistant: Interesting! *jots down notes*
+```
+
+**Track 2 (Context)**: Semantic memories injected ONCE at the top
+```
+Remember these facts about the user:
+- Working on AI character companion project
+- Project uses two-track memory system
+- Interested in journaling and AI
+```
+
+\### Message Flow
+
+```
+1. USER SENDS MESSAGE
+   ↓
+2. STORE IN TRACK 1 (PostgreSQL)
+   - Save as clean ConversationTurn
+   - Update Redis session state
+   ↓
+3. BUILD LLM CONTEXT
+   ├─ Track 1: Get last 10 conversation turns
+   └─ Track 2: Semantic search in ChromaDB
+      - Embed user's message → vector
+      - Find 5 most relevant memories
+      - Inject ONCE at top of context
+   ↓
+4. LLM GENERATES RESPONSE
+   - Phi-3 sees: Context + Clean Conversation
+   - Generates character-appropriate response
+   ↓
+5. PROCESS RESPONSE
+   - Store in Track 1 (PostgreSQL)
+   - Extract important info → Create new memories
+   - Embed and store in ChromaDB (Track 2)
+   - Cache recent context in Redis
+   ↓
+6. SEND TO USER
+```
+
+\### Component Roles
+
+| Component | Purpose | When Data Flows In |
+|-----------|---------|-------------------|
+| **PostgreSQL** | Structured data storage | Every message |
+| - ConversationTurn | Track 1: Clean dialogue history | User/Assistant messages |
+| - Memory | Track 2: Links to ChromaDB embeddings | Important info detected |
+| - User, CharacterState | Persistent user data | User creation, state changes |
+| **ChromaDB** | Semantic vector search | When creating memories |
+| - Embeddings (384-dim) | Find relevant context by meaning | New memories only |
+| - Per-user collections | Isolate memories by user | On memory creation |
+| **Redis** | Fast temporary storage | Every interaction |
+| - Session state | Track active conversations | Every message |
+| - Cache | Avoid repeated DB queries | Every 5 minutes |
+| - Active conversation | Know which conv is current | Session start/end |
+
+\### Why This Works
+
+**Efficiency**: Context mentioned once → more room for conversation
+
+**Intelligence**: Semantic search finds relevant memories by meaning, not keywords
+
+**Natural**: Conversation stays clean and readable
+
+**Scalable**: Old memories don't bloat the context window
+
+\### Example: Semantic Search in Action
+
+User asks: **"What project am I working on?"**
+
+ChromaDB searches by semantic similarity (not keywords):
+```
+Query embedding: [0.23, -0.14, 0.87, ...]
+                        ↓
+        Finds most similar memories:
+
+1. "User working on AI project - character companion"
+   Distance: 1.05 ← Best match!
+
+2. "Project uses two-track memory system"
+   Distance: 1.37
+
+3. "User interested in journaling AI"
+   Distance: 1.55
+```
+
+These get injected as Track 2 context. The LLM now "remembers" the project without it being mentioned in the conversation!
+
+
+
 \## Quick Start for Development
 
 ```bash
