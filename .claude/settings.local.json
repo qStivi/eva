@@ -47,7 +47,10 @@
       "Bash(pip uninstall:*)",
       "Bash(timeout 3 ping:*)",
       "Bash(timeout:*)",
-      "Bash(jobs)"
+      "Bash(jobs)",
+      "Bash(alembic init:*)",
+      "Bash(alembic revision:*)",
+      "Bash(alembic upgrade:*)"
     ],
     "deny": [],
     "ask": []
