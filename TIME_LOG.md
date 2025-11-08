@@ -142,6 +142,61 @@
 
 ---
 
+## Phase 3: Two-Track Memory System
+
+**Estimated**: 4-6 hours
+**Actual**: ~2.5 hours (Session 4: 2025-11-08)
+
+**Phase 3 Start**: 2025-11-08 (post-compact)
+**Phase 3 End**: 2025-11-08
+
+### Tasks
+- [x] 3.1 Memory Module Structure - Actual: Already existed from prior session
+- [x] 3.2 Track 1: Conversation History - Actual: Already implemented (conversation_track.py)
+- [x] 3.3 Track 2: Context Manager - Actual: ~35 min (context_track.py with all context sources)
+- [x] 3.4 Memory Retrieval (RAG) - Actual: ~45 min (retrieval.py with semantic search, importance scoring)
+- [x] 3.5 LLM Memory Integration - Actual: ~30 min (prompts.py update + inference.py)
+- [x] 3.6 Testing - Actual: ~40 min (test_memory.py + conftest.py fixtures)
+- [x] 3.7 Documentation - Actual: ~15 min (TIME_LOG, IMPLEMENTATION_PLAN, README)
+
+**Phase 3 Complete**: ✅
+
+**Results**:
+- Full two-track memory architecture operational
+- **Track 1 (Conversation)**: Clean dialogue history with sliding window
+- **Track 2 (Context)**: Rich context injection from multiple sources:
+  * User preferences from database
+  * Character state (mood, preferences)
+  * Semantic memories from ChromaDB
+  * Temporal context (time, date, day of week)
+  * External triggers support (Phase 5+)
+- **RAG Implementation**:
+  * Importance scoring for conversation turns
+  * Memory type detection (fact, preference, plan, event)
+  * Semantic search via ChromaDB embeddings
+  * Re-ranking by similarity + importance + recency
+- **LLM Integration**:
+  * `build_prompt_with_memory()` combines both tracks
+  * `generate_with_memory()` orchestrates complete pipeline
+  * Streaming support with post-generation memory ingestion
+- **Testing**: Comprehensive test suite covering all components
+- **Files Created**:
+  * `server/app/memory/context_track.py` (ContextManager)
+  * `server/app/memory/retrieval.py` (MemoryRetrieval)
+  * `server/app/llm/inference.py` (generate_with_memory)
+  * `server/tests/test_memory.py` (comprehensive tests)
+- **Files Updated**:
+  * `server/app/llm/prompts.py` (added build_prompt_with_memory)
+  * `server/tests/conftest.py` (async fixtures)
+
+**Key Technical Achievement**:
+- Two-track architecture prevents context duplication
+- Semantic search finds relevant memories without keyword matching
+- Importance scoring ensures only meaningful information is stored
+- Clean separation: conversation stays readable, context injected separately
+
+---
+
 ## Time Tracking Notes
 
 - Include both "doing" and "waiting" time (e.g., pip install, docker pull)

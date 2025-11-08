@@ -94,6 +94,67 @@ You're in a relationship with the user, not serving them. Be genuine."""
         ])
 
     @staticmethod
+    def build_prompt_with_memory(
+        system_prompt: str,
+        context: str,
+        conversation_history: List[Dict[str, str]],
+    ) -> str:
+        """
+        Build complete prompt with two-track memory integration.
+
+        This is the main function for Phase 3's two-track architecture.
+        It combines:
+        - Track 1: Clean conversation history (what's actually said)
+        - Track 2: Rich side context (injected separately)
+
+        Args:
+            system_prompt: Eva's character prompt
+            context: Built context from ContextManager (Track 2)
+            conversation_history: List of message dicts with 'role' and 'content' keys (Track 1)
+
+        Returns:
+            Formatted prompt string ready for LLM generation
+
+        Example:
+            >>> history = [
+            ...     {"role": "user", "content": "Hi Eva!"},
+            ...     {"role": "assistant", "content": "Hey! How are you?"},
+            ... ]
+            >>> context = "User Preferences:\\n- User prefers to be called: Alice"
+            >>> prompt = PromptManager.build_prompt_with_memory(
+            ...     system_prompt=PromptManager.SYSTEM_PROMPT,
+            ...     context=context,
+            ...     conversation_history=history,
+            ... )
+        """
+        prompt_parts = []
+
+        # 1. System prompt (Eva's character definition)
+        prompt_parts.append(f"<|system|>\n{system_prompt}")
+
+        # 2. Track 2: Context injection (if available)
+        if context:
+            prompt_parts.append(f"\n\n{context}")
+
+        prompt_parts.append("<|end|>\n")
+
+        # 3. Track 1: Clean conversation history
+        for msg in conversation_history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            if role == "user":
+                prompt_parts.append(f"<|user|>\n{content}<|end|>\n")
+            elif role == "assistant":
+                prompt_parts.append(f"<|assistant|>\n{content}<|end|>\n")
+            # Skip system messages in conversation history (already in system prompt)
+
+        # 4. Start Eva's response
+        prompt_parts.append("<|assistant|>\n")
+
+        return "".join(prompt_parts)
+
+    @staticmethod
     def extract_character_traits() -> Dict[str, str]:
         """
         Extract Eva's key character traits for reference.
