@@ -105,6 +105,43 @@
 
 ---
 
+## Phase 2: Database Schema & Models
+
+**Estimated**: 3-4 hours
+**Actual**: ~2 hours (Session 3: 2025-11-08)
+
+**Phase 2 Start**: 2025-11-08 07:00 (approx)
+**Phase 2 End**: 2025-11-08 08:30 (approx)
+
+### Tasks
+- [x] 2.1 Review and update documentation - Actual: ~5 min
+- [x] 2.2 Install database dependencies - Actual: ~5 min (asyncpg, sentence-transformers)
+- [x] 2.3 SQLAlchemy async setup - Actual: ~15 min (database.py)
+- [x] 2.4 Database models - Actual: ~30 min (User, CharacterState, Conversation, Memory, JournalEntry)
+- [x] 2.5 Alembic setup and migrations - Actual: ~20 min (init, configure env.py, create+apply migrations)
+- [x] 2.6 Redis session manager - Actual: ~20 min (redis_manager.py with session, cache, tracking)
+- [x] 2.7 ChromaDB vector storage - Actual: ~25 min (chroma_manager.py with embeddings, search)
+- [x] 2.8 Database initialization script - Actual: ~10 min (init_db.py + testing + bug fix)
+
+**Phase 2 Complete**: ✅
+
+**Results**:
+- PostgreSQL schema created with all tables and indexes
+- Two-track memory architecture implemented:
+  * Track 1: ConversationTurn (clean dialogue)
+  * Track 2: Memory (context with ChromaDB embeddings)
+- Redis manager for session state and caching
+- ChromaDB manager with sentence-transformers (all-MiniLM-L6-v2, 384-dim)
+- Database initialization script validates all connections
+- Alembic migrations working for async SQLAlchemy
+- All connections tested successfully (PostgreSQL, Redis, ChromaDB)
+
+**Bug Fixed**:
+- CharacterState.updated_at was non-nullable without default
+- Fixed with migration 953f735935ef
+
+---
+
 ## Time Tracking Notes
 
 - Include both "doing" and "waiting" time (e.g., pip install, docker pull)
