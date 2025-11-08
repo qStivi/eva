@@ -63,8 +63,15 @@ class ChromaManager:
         """Get ChromaDB collection name for a user."""
         return f"user_{user_id}_memories"
 
+    async def _ensure_connected(self):
+        """Ensure ChromaDB client is connected."""
+        if self.client is None:
+            await self.connect()
+
     def _get_or_create_collection(self, user_id: str):
         """Get or create a ChromaDB collection for a user."""
+        if self.client is None:
+            raise RuntimeError("ChromaDB client not connected. Call connect() first.")
         collection_name = self._get_collection_name(user_id)
         return self.client.get_or_create_collection(
             name=collection_name,
@@ -91,6 +98,9 @@ class ChromaManager:
             The memory ID (UUID string)
         """
         try:
+            # Ensure connected
+            await self._ensure_connected()
+
             # Load embedding model if needed
             self._load_embedding_model()
 
@@ -139,6 +149,9 @@ class ChromaManager:
             List of memory dicts with keys: id, content, metadata, distance
         """
         try:
+            # Ensure connected
+            await self._ensure_connected()
+
             # Load embedding model if needed
             self._load_embedding_model()
 
@@ -185,6 +198,7 @@ class ChromaManager:
             Memory dict or None if not found
         """
         try:
+            await self._ensure_connected()
             collection = self._get_or_create_collection(user_id)
             result = collection.get(ids=[memory_id])
 
@@ -220,6 +234,7 @@ class ChromaManager:
             True if successful
         """
         try:
+            await self._ensure_connected()
             collection = self._get_or_create_collection(user_id)
 
             update_kwargs = {"ids": [memory_id]}
@@ -255,6 +270,7 @@ class ChromaManager:
             True if successful
         """
         try:
+            await self._ensure_connected()
             collection = self._get_or_create_collection(user_id)
             collection.delete(ids=[memory_id])
             logger.info(f"Deleted memory {memory_id} for user {user_id}")
@@ -275,6 +291,7 @@ class ChromaManager:
             True if successful
         """
         try:
+            await self._ensure_connected()
             collection_name = self._get_collection_name(user_id)
             self.client.delete_collection(name=collection_name)
             logger.info(f"Deleted all memories for user {user_id}")
@@ -295,6 +312,7 @@ class ChromaManager:
             Dict with count and other stats
         """
         try:
+            await self._ensure_connected()
             collection = self._get_or_create_collection(user_id)
             return {
                 "user_id": user_id,

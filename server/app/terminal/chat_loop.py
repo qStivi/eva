@@ -47,13 +47,8 @@ async def handle_message(
                 stream=True,
             )
 
-        # Convert sync iterator to async iterator for display
-        async def async_wrapper():
-            for chunk in response_iterator:
-                yield chunk
-
-        # Display streaming response
-        await display_streaming_response(async_wrapper(), console)
+        # Display streaming response (response_iterator is already an async generator)
+        await display_streaming_response(response_iterator, console)
 
     except Exception as e:
         display_error(f"Error generating response: {e}")
