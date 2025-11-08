@@ -92,14 +92,6 @@ async def run_chat_loop(debug: bool = False) -> None:
             # Display welcome banner
             display_welcome()
 
-            # Check if resuming conversation
-            if hasattr(session_context.conversation, 'turns') and len(session_context.conversation.turns) > 0:
-                display_system_message(
-                    f"Resuming conversation with {len(session_context.conversation.turns)} previous turns. "
-                    f"Type /history to see recent messages."
-                )
-                console.print()
-
             # Create prompt session with history
             prompt_session: PromptSession = PromptSession(
                 history=InMemoryHistory(),
