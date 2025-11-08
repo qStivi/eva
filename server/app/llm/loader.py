@@ -202,7 +202,7 @@ class LLMLoader:
                 "do_sample": temperature > 0,  # Use sampling if temp > 0
                 "pad_token_id": self.tokenizer.pad_token_id,
                 "eos_token_id": self.tokenizer.eos_token_id,
-                "use_cache": False,  # Disabled due to Phi-3 cache compatibility issue
+                "use_cache": True,  # Re-enabled: Phi-3 had bug, testing with Llama/Gemma (5-10x speedup if works!)
             }
 
             if stream:
