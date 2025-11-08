@@ -197,6 +197,35 @@
 
 ---
 
+## Phase 4 Plan Change: WebSocket → Terminal Interface
+
+**Decision Date**: 2025-11-08 (post-Phase 3)
+
+**Original Plan**: Phase 4 was WebSocket Conversation Endpoint
+**New Plan**: Phase 4 is Terminal Interface (WebSocket moved to Phase 5)
+
+**Rationale**:
+1. **Test before complexity**: Validate Phases 0-3 work correctly together before adding WebSocket network layer
+2. **Production-like testing**: Real database, real LLM, real conversations in actual use
+3. **Easier debugging**: No network protocol to complicate troubleshooting
+4. **Single-user simplicity**: Terminal perfect for personal use (user: qStivi/Stephan)
+5. **Foundation for all interfaces**: If memory system works in terminal, it will work everywhere
+
+**Impact**:
+- Phase renumbering: Terminal (Phase 4), WebSocket (Phase 5), Flutter (Phase 6)
+- No technical debt - just reordering priorities
+- Faster to first working interaction (~5-6 hours vs 8-12 hours for WebSocket)
+- Better validation of Phase 3 memory system
+
+**What This Enables**:
+- Direct testing of two-track memory with `/memories` command
+- Visibility into semantic retrieval scores
+- Conversation persistence validation
+- Character-first language testing
+- Debugging hooks (`/stats`, `/mood`, `/debug`)
+
+---
+
 ## Time Tracking Notes
 
 - Include both "doing" and "waiting" time (e.g., pip install, docker pull)

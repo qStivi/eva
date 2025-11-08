@@ -13,16 +13,20 @@ Text-first design, voice optional. Self-hosted, privacy-focused.
 \## Development Status
 
 **Updated**: 2025-11-08
-**Current Phase**: Phase 4 - WebSocket Conversation Endpoint
+**Current Phase**: Phase 4 - Terminal Interface
 **Approach**: Claude Code handles implementation, developer reviews and guides
 
 See `../IMPLEMENTATION_PLAN.md` for detailed phase breakdown and tasks.
+
+**Phase 4 Decision**: Changed from WebSocket to Terminal Interface to validate memory system in production-like environment before adding network complexity. WebSocket moved to Phase 5.
 
 **Completed Phases**:
 - ✅ Phase 0: Foundation & Infrastructure (2025-11-06)
 - ✅ Phase 1: Basic LLM Integration (2025-11-07)
 - ✅ Phase 2: Database Schema & Models (2025-11-08)
 - ✅ Phase 3: Two-Track Memory System (2025-11-08)
+
+**Next**: Terminal Interface for single-user testing (qStivi/Stephan)
 
 
 

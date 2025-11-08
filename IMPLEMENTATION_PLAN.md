@@ -311,20 +311,154 @@ response2 = generate_with_memory("What should I eat?")
 
 ---
 
-## Phase 4: WebSocket Conversation Endpoint (Week 5)
+## Phase 4: Terminal Interface (Week 5)
+
+**Goal**: Interactive terminal interface for testing and single-user conversations
+
+**Decision**: Changed from WebSocket to Terminal Interface to validate Phases 0-3 in production-like environment before adding network complexity. WebSocket moved to Phase 5.
+
+**Rationale**:
+- Test memory system works correctly before adding WebSocket layer
+- Easier debugging without network protocol
+- Perfect for single-user (qStivi/Stephan) personal use
+- Foundation for all other interfaces
+
+### Tasks
+
+#### 4.1 Setup & Dependencies
+- [ ] Add `prompt-toolkit>=3.0.52` to requirements.txt
+- [ ] Add `rich>=14.1.0` to requirements.txt
+- [ ] Install dependencies: `pip install -r requirements.txt`
+- [ ] Create `server/app/terminal/` package
+- [ ] Create `__init__.py`, `main.py`, `chat_loop.py`, `commands.py`, `display.py`, `session.py`
+
+#### 4.2 Session Management
+- [ ] Create `server/app/terminal/session.py`
+- [ ] Implement `load_or_create_user()` - hardcoded "qStivi" / "Stephan"
+- [ ] Create user on first run if doesn't exist
+- [ ] Implement `load_or_create_conversation()`
+- [ ] Load character state from database
+- [ ] Track active conversation_id in session context
+
+#### 4.3 Display Utilities
+- [ ] Create `server/app/terminal/display.py`
+- [ ] Implement `display_user_message()` - cyan color
+- [ ] Implement `display_assistant_message()` - green bold color
+- [ ] Implement `display_system_message()` - yellow dim
+- [ ] Implement `display_streaming_response()` - rich.Live integration
+- [ ] Implement `display_welcome()` - banner with rich.Panel
+- [ ] Implement `display_stats_table()` - rich.Table for /stats
+- [ ] Implement `display_memories()` - format retrieved memories
+
+#### 4.4 Basic Chat Loop
+- [ ] Create `server/app/terminal/chat_loop.py`
+- [ ] Initialize prompt_toolkit PromptSession
+- [ ] Display welcome banner
+- [ ] Implement main conversation loop:
+  - Prompt for input with `prompt_async()`
+  - Detect commands (starts with /)
+  - Route to command handler or message handler
+  - Continue until /exit
+- [ ] Handle Ctrl+C gracefully
+- [ ] Commit database changes on shutdown
+
+#### 4.5 Message Handler
+- [ ] In `chat_loop.py`, create `handle_message()`
+- [ ] Call `generate_with_memory()` with streaming=True
+- [ ] Display "Eva is thinking..." with rich.Status
+- [ ] Stream response chunks with `display_streaming_response()`
+- [ ] Handle errors gracefully (LLM timeout, database errors)
+- [ ] Add blank line after response for readability
+
+#### 4.6 Command System
+- [ ] Create `server/app/terminal/commands.py`
+- [ ] Implement `/help` - Show available commands with descriptions
+- [ ] Implement `/exit` or `/quit` - Exit gracefully
+- [ ] Implement `/stats` - Show conversation statistics (turn count, timestamps)
+- [ ] Implement `/memories` - Show retrieved memories for last message
+- [ ] Implement `/new` - Start new conversation
+- [ ] Implement `/clear` - Clear screen (keep conversation in DB)
+- [ ] Implement `/mood` - Show character state (mood, preferences)
+- [ ] Implement `/history` - Show recent conversation turns
+- [ ] Optional: `/debug` - Toggle debug mode (show context lengths, prompts)
+
+#### 4.7 Main Entry Point
+- [ ] Create `server/app/terminal/main.py`
+- [ ] Add argument parser (argparse)
+- [ ] Add `--debug` flag for debug mode
+- [ ] Initialize database connection
+- [ ] Call chat_loop with asyncio.run()
+- [ ] Handle initialization errors (database not running, etc.)
+
+#### 4.8 Testing & Polish
+- [ ] Test multi-turn conversations
+- [ ] Verify memory retrieval with `/memories` command
+- [ ] Test all commands work correctly
+- [ ] Test conversation persistence (exit and resume)
+- [ ] Test error handling (empty input, database errors)
+- [ ] Test on Windows terminal
+- [ ] Verify streaming response displays smoothly
+- [ ] Test command history (up/down arrows)
+
+#### 4.9 Documentation
+- [ ] Update TIME_LOG.md with Phase 4 entry
+- [ ] Update IMPLEMENTATION_PLAN.md with Phase 4 completion
+- [ ] Create `docs/TERMINAL_USAGE.md` (optional usage guide)
+
+**Deliverable**: Working terminal interface with full memory integration and debugging commands
+
+**Testing Checkpoint**:
+```bash
+# Start terminal interface
+cd server && python -m app.terminal.main
+
+# Test conversation
+You: Hello Eva!
+Eva: Hey! How's it going? *smiles*
+
+# Test memory
+You: I love pizza
+Eva: Nice! I'll remember that. *jots down notes*
+
+You: /memories
+╭─ Retrieved Memories ─────────╮
+│ No memories yet (first chat!) │
+╰───────────────────────────────╯
+
+# Test stats
+You: /stats
+╭─ Conversation Statistics ────╮
+│ Total Turns:      4          │
+│ User Turns:       2          │
+│ Assistant Turns:  2          │
+╰───────────────────────────────╯
+
+# Test resume
+You: /exit
+Eva: See you later! *waves*
+
+# Restart and resume
+python -m app.terminal.main
+You: What food do I like?
+Eva: I remember you mentioned loving pizza!
+```
+
+---
+
+## Phase 5: WebSocket Conversation Endpoint (Week 6)
 
 **Goal**: Real-time conversation via WebSocket with streaming responses
 
 ### Tasks
 
-#### 4.1 WebSocket Infrastructure
+#### 5.1 WebSocket Infrastructure
 - [ ] Create `server/app/routes/conversation.py`
 - [ ] Implement `WS /ws/conversation` endpoint
 - [ ] Add WebSocket connection manager
 - [ ] Handle connection lifecycle (connect, disconnect, errors)
 - [ ] Implement authentication (simple token for now)
 
-#### 4.2 Message Protocol
+#### 5.2 Message Protocol
 - [ ] Design WebSocket message format (JSON):
   - Client → Server: `{type: "message", content: "...", metadata: {...}}`
   - Server → Client: `{type: "response", content: "...", done: false}`
@@ -332,21 +466,21 @@ response2 = generate_with_memory("What should I eat?")
 - [ ] Implement message validation
 - [ ] Add message type handlers
 
-#### 4.3 Streaming Response Implementation
-- [ ] Integrate LLM streaming with llama-cpp-python
+#### 5.3 Streaming Response Implementation
+- [ ] Integrate LLM streaming with transformers
 - [ ] Stream tokens via WebSocket as generated
 - [ ] Send "done" signal when complete
 - [ ] Handle stream interruption/cancellation
 - [ ] Add typing indicators
 
-#### 4.4 Conversation Session Management
+#### 5.4 Conversation Session Management
 - [ ] Create or resume conversation session
 - [ ] Load conversation history from database
 - [ ] Retrieve relevant memories from ChromaDB
 - [ ] Update session state in Redis
 - [ ] Save each turn to PostgreSQL
 
-#### 4.5 Integration
+#### 5.5 Integration
 - [ ] Connect WebSocket handler to memory system
 - [ ] Connect to LLM generation with streaming
 - [ ] Implement full conversation loop:
@@ -359,7 +493,7 @@ response2 = generate_with_memory("What should I eat?")
   7. Update memory embeddings
 - [ ] Add error handling and recovery
 
-#### 4.6 Testing
+#### 5.6 Testing
 - [ ] Create `server/tests/test_websocket.py`
 - [ ] Test WebSocket connection
 - [ ] Test message sending/receiving
@@ -387,7 +521,7 @@ websocat ws://localhost:8080/ws/conversation?token=test
 
 ---
 
-## Phase 5: Flutter Client - Basic UI (Week 6-7)
+## Phase 6: Flutter Client - Basic UI (Week 7-8)
 
 **Goal**: Cross-platform Flutter app with text chat interface
 
