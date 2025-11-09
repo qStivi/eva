@@ -192,7 +192,7 @@ async def _streaming_with_save(
     save_to_memory: bool,
     memory_retrieval: MemoryRetrieval,
     user_id: str,
-) -> Iterator[str]:
+):
     """
     Helper function to handle streaming generation with post-generation saving.
 
@@ -214,7 +214,7 @@ async def _streaming_with_save(
     # Accumulate complete response
     full_response = []
 
-    # Yield chunks as they come
+    # Yield chunks as they come (response_iterator is sync, not async)
     for chunk in response_iterator:
         full_response.append(chunk)
         yield chunk
