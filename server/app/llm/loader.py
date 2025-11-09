@@ -99,14 +99,19 @@ class LLMLoader:
 
             # Load model
             logger.info("Loading model weights...")
+
+            # Attention implementation: eager (slower but compatible) vs sdpa (faster but may fail on some models)
+            # Phi-3 requires eager, but Qwen/Gemma/Llama can use sdpa for better performance
+            attn_impl = "sdpa" if "Phi" not in model_id else "eager"
+
             model = AutoModelForCausalLM.from_pretrained(
                 model_id,
                 quantization_config=quantization_config,
                 device_map="auto" if device == "cuda" else None,
-                trust_remote_code=True,  # Phi-3 requires this
+                trust_remote_code=True,  # Required for some models
                 dtype=torch.float16 if device == "cuda" else torch.float32,
                 low_cpu_mem_usage=True,
-                attn_implementation="eager",  # Fix for Phi-3 attention compatibility
+                attn_implementation=attn_impl,  # Use faster attention for non-Phi models
             )
 
             # Move to device if CPU
