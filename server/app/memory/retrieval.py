@@ -38,7 +38,7 @@ class MemoryRetrieval:
 
     def __init__(
         self,
-        min_relevance_score: float = 0.5,
+        min_relevance_score: float = 0.3,  # Lowered from 0.5 - L2 distances make similarities lower
         max_memories: int = 10,
         min_importance_for_storage: float = 0.3,
         recency_weight: float = 0.2,
@@ -195,7 +195,7 @@ class MemoryRetrieval:
 
             # Build memory dict
             memory = {
-                "content_summary": result.get("document", ""),
+                "content_summary": result.get("content", ""),  # Fixed: ChromaDB returns 'content' not 'document'
                 "importance_score": metadata.get("importance_score", 0.5),
                 "distance": distance,
                 "similarity": similarity,
