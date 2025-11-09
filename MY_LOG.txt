@@ -1,0 +1,40 @@
+(venv) PS C:\Users\steph\Projects\eva\server> python -m app.terminal.main
+Initializing session...
+╭────────────────────────────────────────────────────────────────────────────────────────── Eva - Character Companion ──────────────────────────────────────────────────────────────────────────────────────────╮
+│ Welcome to Eva Terminal Interface                                                                                                                                                                             │
+│                                                                                                                                                                                                               │
+│ A thoughtful companion who journals with you.                                                                                                                                                                 │
+│ Type your message to chat, or use commands (type /help for list).                                                                                                                                             │
+│                                                                                                                                                                                                               │
+│ Ready to chat!                                                                                                                                                                                                │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+You: Hey, I'm back
+⠏ Eva is thinking...`torch_dtype` is deprecated! Use `dtype` instead!
+`flash-attention` package not found, consider installing for better performance: No module named 'flash_attn'.
+Current `flash-attention` does not support `window_size`. Either upgrade or use `attn_implementation='eager'`.
+Loading checkpoint shards:   0%|                                                                                                                                                          | 0/2 [00:00<?, ?it/s]
+Loading checkpoint shards:  50%|#########################################################################                                                                         | 1/2 [00:09<00:09,  9.50s/it]
+Loading checkpoint shards: 100%|##################################################################################################################################################| 2/2 [00:15<00:00,  7.34s/it]
+Loading checkpoint shards: 100%|##################################################################################################################################################| 2/2 [00:15<00:00,  7.67s/it]
+
+Exception in thread Thread-6 (generate):
+Traceback (most recent call last):
+  File "C:\Users\steph\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\Users\steph\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\steph\Projects\eva\server\venv\Lib\site-packages\torch\utils\_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\steph\Projects\eva\server\venv\Lib\site-packages\transformers\generation\utils.py", line 2564, in generate
+    result = decoding_method(
+             ^^^^^^^^^^^^^^^^
+  File "C:\Users\steph\Projects\eva\server\venv\Lib\site-packages\transformers\generation\utils.py", line 2781, in _sample
+    model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\steph\.cache\huggingface\modules\transformers_modules\microsoft\Phi_hyphen_3_hyphen_mini_hyphen_4k_hyphen_instruct\0a67737cc96d2554230f90338b163bc6380a2a85\modeling_phi3.py", line 1291, in
+prepare_inputs_for_generation
+    past_length = past_key_values.seen_tokens
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'DynamicCache' object has no attribute 'seen_tokens'

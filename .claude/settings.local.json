@@ -50,7 +50,16 @@
       "Bash(jobs)",
       "Bash(alembic init:*)",
       "Bash(alembic revision:*)",
-      "Bash(alembic upgrade:*)"
+      "Bash(alembic upgrade:*)",
+      "WebSearch",
+      "Bash(docker-compose ps:*)",
+      "Bash(redis-cli:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(pip show:*)",
+      "Bash(git restore:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(/dev/null)"
     ],
     "deny": [],
     "ask": []

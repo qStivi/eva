@@ -97,7 +97,11 @@ async def display_streaming_response(
 
 def _format_response_text(text: str) -> Text:
     """
-    Format response text with special handling for tags like <think>.
+    Format response text with special handling for thinking tags.
+
+    Supports:
+    - <think>...</think> (generic)
+    - ###ponder###...###/ponder### (Qwen MOE)
 
     Args:
         text: Raw response text potentially containing special tags
@@ -109,8 +113,9 @@ def _format_response_text(text: str) -> Text:
 
     result = Text()
 
-    # Pattern to find <think>...</think> blocks
-    think_pattern = r'<think>(.*?)</think>'
+    # Pattern to find thinking blocks (both formats)
+    # <think>...</think> OR ###ponder###...###/ponder###
+    think_pattern = r'(<think>(.*?)</think>)|(###ponder###(.*?)###/ponder###)'
 
     last_end = 0
     for match in re.finditer(think_pattern, text, re.DOTALL):
@@ -118,8 +123,10 @@ def _format_response_text(text: str) -> Text:
         if match.start() > last_end:
             result.append(text[last_end:match.start()])
 
+        # Get think content (group 2 for <think>, group 4 for ###ponder###)
+        think_content = (match.group(2) or match.group(4) or "").strip()
+
         # Add think block content in dim italic style
-        think_content = match.group(1).strip()
         result.append(f"[thinking: {think_content}]", style="dim italic")
 
         last_end = match.end()

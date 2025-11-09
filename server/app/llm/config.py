@@ -21,29 +21,29 @@ class LLMConfig(BaseModel):
         description="Number of threads for inference"
     )
     temperature: float = Field(
-        default=0.7,
+        default=0.5,
         ge=0.0,
         le=2.0,
-        description="Sampling temperature"
+        description="Sampling temperature (0.5 optimized for Qwen MOE)"
     )
     max_tokens: int = Field(
-        default=256,
-        description="Maximum tokens to generate (increased for models with thinking tags)"
+        default=200,
+        description="Maximum tokens to generate (reduced from 256 for faster responses)"
     )
     top_p: float = Field(
-        default=0.9,
+        default=0.95,
         ge=0.0,
         le=1.0,
-        description="Nucleus sampling probability"
+        description="Nucleus sampling probability (0.95 recommended for Qwen MOE)"
     )
     top_k: int = Field(
         default=40,
-        description="Top-k sampling"
+        description="Top-k sampling (40 recommended for Qwen MOE)"
     )
     repeat_penalty: float = Field(
-        default=1.1,
+        default=1.08,
         ge=1.0,
-        description="Repetition penalty"
+        description="Repetition penalty (1.08 for Qwen MOE thinking control)"
     )
 
     class Config:
