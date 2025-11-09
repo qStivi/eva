@@ -170,10 +170,10 @@ def display_memories(memories: List[Dict[str, Any]]) -> None:
 
     for i, memory in enumerate(memories, 1):
         # Extract memory details
-        content = memory.get("content", "")
+        content = memory.get("content_summary", "")  # Fixed: retrieval returns 'content_summary'
         memory_type = memory.get("memory_type", "unknown")
         similarity = memory.get("similarity", 0.0)
-        importance = memory.get("importance", 0.0)
+        importance = memory.get("importance_score", 0.0)  # Fixed: retrieval returns 'importance_score'
 
         # Format memory entry
         memory_text = Text()
