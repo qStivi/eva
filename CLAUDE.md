@@ -115,14 +115,72 @@ flutter build windows  # Or: ios, android, web
 ### Database Commands
 
 ```bash
-# PostgreSQL connection
+# PostgreSQL connection (if psql installed)
 psql -h localhost -U user -d character_companion
 
-# Redis CLI
+# Redis CLI (if redis-cli installed)
 redis-cli
 
 # ChromaDB runs on http://localhost:8000
 ```
+
+### Database Cleanup (Clear All Data)
+
+**IMPORTANT**: On Windows with Docker, the simplest approach is to nuke volumes and recreate.
+
+**What DOESN'T work:**
+- ❌ Direct Python script with SQLAlchemy async (requires asyncpg, not psycopg2)
+- ❌ `psql` command in Git Bash (not installed by default on Windows)
+- ❌ `docker-compose exec` with heredoc (stdin issues, hangs)
+- ❌ Individual SQL commands via docker exec (quoting issues with reserved words)
+
+**What WORKS - The Nuclear Option (recommended for dev):**
+
+```bash
+# Step 1: Stop containers and remove volumes (DESTROYS ALL DATA)
+cd docker
+docker-compose down -v
+
+# Step 2: Start fresh containers
+docker-compose up -d
+
+# Step 3: Wait for containers to initialize (5 seconds)
+timeout 5 ping 127.0.0.1 -n 6 > /dev/null 2>&1
+
+# Step 4: Create database schema
+cd ../server
+source venv/Scripts/activate  # Or: venv\Scripts\activate on CMD
+python -c "
+import asyncio
+from app.database import engine, Base
+from app.models.user import User
+from app.models.character import CharacterState
+from app.models.conversation import Conversation, ConversationTurn
+from app.models.memory import Memory
+
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print('Database schema created')
+
+asyncio.run(init_db())
+"
+
+# Step 5: Verify Redis is empty
+cd ../docker
+docker-compose exec -T redis redis-cli DBSIZE  # Should return 0
+```
+
+**Result:**
+- ✅ PostgreSQL: Fresh database with clean schema
+- ✅ Redis: Empty (DBSIZE = 0)
+- ✅ ChromaDB: Fresh volume with no embeddings
+
+**When to use this:**
+- After fixing major bugs (e.g., chat template issues)
+- Before testing new features that need clean state
+- When database schema changes
+- When you suspect corrupted data
 
 ## Project Structure
 
