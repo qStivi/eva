@@ -27,8 +27,8 @@ class LLMConfig(BaseModel):
         description="Sampling temperature (0.5 optimized for Qwen MOE)"
     )
     max_tokens: int = Field(
-        default=200,
-        description="Maximum tokens to generate (reduced from 256 for faster responses)"
+        default=256,
+        description="Maximum tokens to generate"
     )
     top_p: float = Field(
         default=0.95,
