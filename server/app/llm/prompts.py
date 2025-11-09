@@ -98,7 +98,8 @@ You're in a relationship with the user, not serving them. Be genuine."""
         system_prompt: str,
         context: str,
         conversation_history: List[Dict[str, str]],
-    ) -> str:
+        tokenizer = None,
+    ) -> str | List[Dict[str, str]]:
         """
         Build complete prompt with two-track memory integration.
 
@@ -111,9 +112,11 @@ You're in a relationship with the user, not serving them. Be genuine."""
             system_prompt: Eva's character prompt
             context: Built context from ContextManager (Track 2)
             conversation_history: List of message dicts with 'role' and 'content' keys (Track 1)
+            tokenizer: Optional tokenizer for chat template formatting (recommended for model compatibility)
 
         Returns:
-            Formatted prompt string ready for LLM generation
+            If tokenizer provided: Formatted prompt string using model's chat template
+            If no tokenizer: List of message dicts for manual formatting
 
         Example:
             >>> history = [
@@ -125,34 +128,42 @@ You're in a relationship with the user, not serving them. Be genuine."""
             ...     system_prompt=PromptManager.SYSTEM_PROMPT,
             ...     context=context,
             ...     conversation_history=history,
+            ...     tokenizer=tokenizer,  # Use model's chat template
             ... )
         """
-        prompt_parts = []
-
-        # 1. System prompt (Eva's character definition)
-        prompt_parts.append(f"<|system|>\n{system_prompt}")
-
-        # 2. Track 2: Context injection (if available)
+        # Build system content: character prompt + context (Track 2)
+        system_content = system_prompt
         if context:
-            prompt_parts.append(f"\n\n{context}")
+            system_content += f"\n\n{context}"
 
-        prompt_parts.append("<|end|>\n")
+        # Build messages in chat format
+        messages = [{"role": "system", "content": system_content}]
 
-        # 3. Track 1: Clean conversation history
+        # Add conversation history (Track 1)
         for msg in conversation_history:
             role = msg.get("role", "user")
             content = msg.get("content", "")
+            if role in ["user", "assistant"]:
+                messages.append({"role": role, "content": content})
 
-            if role == "user":
-                prompt_parts.append(f"<|user|>\n{content}<|end|>\n")
-            elif role == "assistant":
-                prompt_parts.append(f"<|assistant|>\n{content}<|end|>\n")
-            # Skip system messages in conversation history (already in system prompt)
-
-        # 4. Start Eva's response
-        prompt_parts.append("<|assistant|>\n")
-
-        return "".join(prompt_parts)
+        # Use tokenizer's chat template if available (recommended!)
+        if tokenizer is not None:
+            try:
+                # Use model's built-in chat template (handles all special tokens correctly)
+                prompt = tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,  # Return string, not tokens
+                    add_generation_prompt=True,  # Add start token for assistant response
+                )
+                return prompt
+            except Exception as e:
+                # Fallback to messages if template fails
+                import logging
+                logging.warning(f"Failed to apply chat template: {e}, returning message list")
+                return messages
+        else:
+            # Return messages for manual formatting (legacy path)
+            return messages
 
     @staticmethod
     def extract_character_traits() -> Dict[str, str]:

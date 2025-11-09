@@ -60,6 +60,8 @@ async def display_streaming_response(
     Display streaming response with rich.Live.
     Returns full response text.
 
+    Handles special tags like <think>...</think> with custom formatting.
+
     Args:
         response_iterator: Async iterator yielding text chunks
         display_console: Console to use (defaults to global console)
@@ -77,16 +79,56 @@ async def display_streaming_response(
     with Live(response_text, console=display_console, refresh_per_second=10) as live:
         async for chunk in response_iterator:
             full_response += chunk
-            # Update the display
+            # Update the display with formatted response
             new_text = Text()
             new_text.append("Eva: ", style="bold green")
-            new_text.append(full_response)
+
+            # Format response (handle <think> tags)
+            formatted = _format_response_text(full_response)
+            new_text.append(formatted)
+
             live.update(new_text)
 
     # Print newline after streaming completes
     display_console.print()
 
     return full_response
+
+
+def _format_response_text(text: str) -> Text:
+    """
+    Format response text with special handling for tags like <think>.
+
+    Args:
+        text: Raw response text potentially containing special tags
+
+    Returns:
+        Rich Text object with formatted content
+    """
+    import re
+
+    result = Text()
+
+    # Pattern to find <think>...</think> blocks
+    think_pattern = r'<think>(.*?)</think>'
+
+    last_end = 0
+    for match in re.finditer(think_pattern, text, re.DOTALL):
+        # Add text before the think block (normal text)
+        if match.start() > last_end:
+            result.append(text[last_end:match.start()])
+
+        # Add think block content in dim italic style
+        think_content = match.group(1).strip()
+        result.append(f"[thinking: {think_content}]", style="dim italic")
+
+        last_end = match.end()
+
+    # Add remaining text after last think block
+    if last_end < len(text):
+        result.append(text[last_end:])
+
+    return result
 
 
 def display_stats_table(metadata: Dict[str, Any]) -> None:

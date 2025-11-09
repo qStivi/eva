@@ -124,10 +124,12 @@ async def generate_with_memory(
     )
 
     # STEP 5: Build complete prompt with two-track memory
+    # Pass tokenizer for proper chat template formatting (fixes special token leakage)
     prompt = PromptManager.build_prompt_with_memory(
         system_prompt=PromptManager.SYSTEM_PROMPT,
         context=context,
         conversation_history=conversation_messages,
+        tokenizer=llm_loader.tokenizer,  # Use model's chat template
     )
 
     # STEP 6: Generate response via LLM

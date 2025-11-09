@@ -27,8 +27,8 @@ class LLMConfig(BaseModel):
         description="Sampling temperature"
     )
     max_tokens: int = Field(
-        default=128,
-        description="Maximum tokens to generate"
+        default=256,
+        description="Maximum tokens to generate (increased for models with thinking tags)"
     )
     top_p: float = Field(
         default=0.9,

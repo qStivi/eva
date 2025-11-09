@@ -219,13 +219,14 @@ class ConversationHistory:
             "conversation_id": conversation.id,
             "title": conversation.title,
             "platform": conversation.platform,
-            "created_at": conversation.created_at,
+            "started_at": conversation.started_at,  # Fixed: was created_at
+            "ended_at": conversation.ended_at,
             "updated_at": conversation.updated_at,
             "total_turns": len(turns),
             "user_turns": sum(1 for t in turns if t.role == MessageRole.USER),
             "assistant_turns": sum(1 for t in turns if t.role == MessageRole.ASSISTANT),
         }
-        
+
         return metadata
     
     def format_history_as_text(
