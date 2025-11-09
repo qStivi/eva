@@ -48,20 +48,34 @@ async def handle_message(
         # Store in session context for /memories command
         session_context.last_retrieved_memories = retrieved_memories
 
+        # Debug: Show retrieved memories count
+        if session_context.debug_mode:
+            console.print(f"[dim yellow]DEBUG: Retrieved {len(retrieved_memories)} memories[/dim yellow]")
+            for i, mem in enumerate(retrieved_memories[:3], 1):
+                content_preview = mem.get('content_summary', '')[:80]
+                console.print(f"[dim yellow]  {i}. {content_preview}...[/dim yellow]")
+
         # Show thinking status
         with display_thinking():
             # Generate response with memory integration
+            # In debug mode, disable streaming for cleaner output
+            use_streaming = not session_context.debug_mode
             response_iterator = await generate_with_memory(
                 session=db_session,
                 user_id=str(session_context.user.id),
                 conversation_id=str(session_context.conversation.id),
                 user_message=user_input,
                 character_state_id=str(session_context.character_state.id),
-                stream=True,
+                stream=use_streaming,
             )
 
-        # Display streaming response (response_iterator is already an async generator)
-        await display_streaming_response(response_iterator, console)
+        # Display response (streaming or non-streaming based on debug mode)
+        if use_streaming:
+            await display_streaming_response(response_iterator, console)
+        else:
+            # Non-streaming response (debug mode)
+            from app.terminal.display import display_assistant_message
+            display_assistant_message(response_iterator)  # response_iterator is a string in non-streaming mode
 
     except Exception as e:
         display_error(f"Error generating response: {e}")

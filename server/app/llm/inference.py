@@ -123,6 +123,13 @@ async def generate_with_memory(
         retrieved_memories=retrieved_memories,
     )
 
+    # Debug logging
+    import os
+    if os.getenv("DEBUG", "false").lower() == "true":
+        logger.info(f"Retrieved {len(retrieved_memories)} memories for context")
+        logger.info(f"Built context length: {len(context)} chars")
+        logger.info(f"Context preview: {context[:500]}...")
+
     # STEP 5: Build complete prompt with two-track memory
     # Pass tokenizer for proper chat template formatting (fixes special token leakage)
     prompt = PromptManager.build_prompt_with_memory(
@@ -131,6 +138,11 @@ async def generate_with_memory(
         conversation_history=conversation_messages,
         tokenizer=llm_loader.tokenizer,  # Use model's chat template
     )
+
+    # Debug: log final prompt
+    if os.getenv("DEBUG", "false").lower() == "true":
+        logger.info(f"Final prompt length: {len(str(prompt))} chars")
+        logger.info(f"Prompt preview: {str(prompt)[:1000]}...")
 
     # STEP 6: Generate response via LLM
     response = llm_loader.generate(
