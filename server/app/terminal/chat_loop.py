@@ -27,14 +27,27 @@ async def handle_message(
     Handle user message and generate response.
 
     1. Display thinking status
-    2. Call generate_with_memory()
-    3. Stream response with display_streaming_response()
-    4. Handle errors
+    2. Retrieve memories for context
+    3. Call generate_with_memory()
+    4. Stream response with display_streaming_response()
+    5. Store retrieved memories in session context for /memories command
     """
     from app.llm.inference import generate_with_memory
     from app.terminal.display import display_thinking, display_streaming_response, console
+    from app.memory.retrieval import MemoryRetrieval
 
     try:
+        # Retrieve memories for this query (so we can show them with /memories)
+        memory_retrieval = MemoryRetrieval(max_memories=5)
+        retrieved_memories = await memory_retrieval.search_relevant_memories(
+            user_id=str(session_context.user.id),
+            query=user_input,
+            n_results=5,
+        )
+
+        # Store in session context for /memories command
+        session_context.last_retrieved_memories = retrieved_memories
+
         # Show thinking status
         with display_thinking():
             # Generate response with memory integration
