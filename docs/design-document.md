@@ -491,9 +491,15 @@ Universal webhook endpoint accepts triggers from any external system (Home Assis
 
 \- \[ ] Context priority/relevance scoring
 
+\- \[ ] **Skill file system infrastructure** (see [SKILL_FILE_SYSTEM.md](SKILL_FILE_SYSTEM.md))
+  \- Create `prompts/` directory structure
+  \- Implement dynamic skill loading in inference.py
+  \- Extract base character to `prompts/base-character.md`
+  \- Create skill loader utility
 
 
-\*\*Deliverable\*\*: Server remembers and uses past conversations
+
+\*\*Deliverable\*\*: Server remembers and uses past conversations + modular prompt system
 
 
 
@@ -545,9 +551,19 @@ Universal webhook endpoint accepts triggers from any external system (Home Assis
 
 \- \[ ] Journal viewer in Flutter
 
+\- \[ ] **Create journal-skill.md** - How Eva writes journal entries
+  \- Format guidelines (Logseq markdown)
+  \- Tone matching examples
+  \- In-character references ("*jots down notes*" not "journal created")
+
+\- \[ ] **Create memory-skill.md** - How Eva uses retrieved memories
+  \- Natural memory reference examples
+  \- Handling irrelevant/wrong memories
+  \- Avoiding robotic "according to my records" language
 
 
-\*\*Deliverable\*\*: Natural conversations create journal entries
+
+\*\*Deliverable\*\*: Natural conversations create journal entries with character consistency
 
 
 
@@ -573,9 +589,19 @@ Universal webhook endpoint accepts triggers from any external system (Home Assis
 
 \- \[ ] Data export tools
 
+\- \[ ] **Create webhook-skill.md** - How Eva reacts to external triggers
+  \- Home Assistant event handling
+  \- Context enrichment from triggers
+  \- Natural acknowledgment vs robotic confirmation
+
+\- \[ ] **Create character-state-skill.md** - How Eva updates/references mood
+  \- Mood influence on responses
+  \- Preference tracking
+  \- Natural mood expression ("I'm not in the mood for..." vs state machine output)
 
 
-\*\*Deliverable\*\*: Feature-complete system with personality
+
+\*\*Deliverable\*\*: Feature-complete system with personality and all skill files
 
 
 

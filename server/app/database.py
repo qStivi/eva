@@ -24,7 +24,7 @@ ASYNC_DATABASE_URL = settings.database_url.replace(
 # Create async engine
 engine = create_async_engine(
     ASYNC_DATABASE_URL,
-    echo=settings.debug,  # Log SQL queries in debug mode
+    echo=False,  # Disable SQL query logging (too verbose for debug mode)
     pool_pre_ping=True,  # Verify connections before using
     pool_size=5,
     max_overflow=10,

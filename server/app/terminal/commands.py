@@ -82,19 +82,31 @@ async def cmd_new(
     Start new conversation.
     Creates new conversation and updates session_context.
     """
+    from datetime import datetime, timezone
+    from app.models.conversation import Conversation
+
     try:
-        # Create new conversation
-        new_conversation = await load_or_create_conversation(
-            session,
-            session_context.user,
-            session_context.character_state,
+        # Mark current conversation as ended
+        old_conversation = session_context.conversation
+        old_conversation.ended_at = datetime.now(timezone.utc)
+        session.add(old_conversation)
+
+        # Create new conversation (directly, not via load_or_create)
+        new_conversation = Conversation(
+            user_id=session_context.user.id,
+            character_state_id=session_context.character_state.id,
+            title="Terminal Conversation",
+            platform="terminal",
         )
+        session.add(new_conversation)
+        await session.commit()
+        await session.refresh(new_conversation)
 
         # Update session context
         session_context.conversation = new_conversation
 
-        # Commit the new conversation
-        await session.commit()
+        # Clear last retrieved memories (fresh start)
+        session_context.last_retrieved_memories = None
 
         display_system_message(
             f"Started new conversation (ID: {new_conversation.id})"
@@ -107,6 +119,18 @@ async def cmd_new(
 async def cmd_clear() -> None:
     """Clear screen"""
     clear_screen()
+
+
+async def cmd_restart() -> int:
+    """
+    Restart the terminal interface.
+    Exits with special code (99) to signal startup script to relaunch.
+
+    Returns:
+        99 to signal restart request
+    """
+    display_system_message("Restarting Eva...")
+    return 99  # Special exit code for restart
 
 
 async def cmd_mood(
@@ -207,6 +231,88 @@ async def cmd_history(
         display_error(f"Error loading history: {e}")
 
 
+async def cmd_debug(
+    session_context: SessionContext,
+    args: Optional[str] = None,
+) -> None:
+    """
+    Toggle debug output modes.
+
+    Usage:
+        /debug           - Show current debug status
+        /debug memory    - Toggle memory debug (ingestion/retrieval)
+        /debug prompt    - Toggle prompt assembly debug
+        /debug llm       - Toggle LLM generation debug
+        /debug all       - Toggle all debug modes
+    """
+    from rich.panel import Panel
+    from rich.text import Text
+    from app.terminal.display import console
+
+    if not args:
+        # Show current status
+        status_text = Text()
+        status_text.append("Debug Modes:\n\n", style="bold white")
+
+        # Memory debug
+        status_text.append("  Memory:  ", style="cyan")
+        status_text.append("[ON]\n" if session_context.debug_memory else "[OFF]\n",
+                         style="bold green" if session_context.debug_memory else "dim white")
+
+        # Prompt debug
+        status_text.append("  Prompt:  ", style="cyan")
+        status_text.append("[ON]\n" if session_context.debug_prompt else "[OFF]\n",
+                         style="bold green" if session_context.debug_prompt else "dim white")
+
+        # LLM debug
+        status_text.append("  LLM:     ", style="cyan")
+        status_text.append("[ON]\n" if session_context.debug_llm else "[OFF]\n",
+                         style="bold green" if session_context.debug_llm else "dim white")
+
+        status_text.append("\nUsage: /debug [memory|prompt|llm|all]", style="dim white")
+
+        panel = Panel(
+            status_text,
+            title="Debug Status",
+            border_style="yellow",
+        )
+        console.print(panel)
+        return
+
+    # Parse subcommand
+    subcommand = args.lower().strip()
+
+    if subcommand == "memory":
+        session_context.debug_memory = not session_context.debug_memory
+        status = "enabled" if session_context.debug_memory else "disabled"
+        display_system_message(f"Memory debug {status}")
+
+    elif subcommand == "prompt":
+        session_context.debug_prompt = not session_context.debug_prompt
+        status = "enabled" if session_context.debug_prompt else "disabled"
+        display_system_message(f"Prompt debug {status}")
+
+    elif subcommand == "llm":
+        session_context.debug_llm = not session_context.debug_llm
+        status = "enabled" if session_context.debug_llm else "disabled"
+        display_system_message(f"LLM debug {status}")
+
+    elif subcommand == "all":
+        # Toggle all - if any are on, turn all off; otherwise turn all on
+        any_on = session_context.debug_memory or session_context.debug_prompt or session_context.debug_llm
+        new_state = not any_on
+
+        session_context.debug_memory = new_state
+        session_context.debug_prompt = new_state
+        session_context.debug_llm = new_state
+
+        status = "enabled" if new_state else "disabled"
+        display_system_message(f"All debug modes {status}")
+
+    else:
+        display_error(f"Unknown debug mode: {subcommand}. Use: memory, prompt, llm, or all")
+
+
 async def handle_command(
     command: str,
     session_context: SessionContext,
@@ -215,7 +321,7 @@ async def handle_command(
     """
     Route command to handler.
 
-    Returns True to continue loop, False to exit.
+    Returns True to continue loop, False to exit, or 99 to restart.
 
     Supported commands:
     - /help: Show help
@@ -224,6 +330,7 @@ async def handle_command(
     - /memories: Show memories
     - /new: New conversation
     - /clear: Clear screen
+    - /restart: Restart terminal
     - /mood: Show character mood
     - /history [n]: Show history
     """
@@ -259,6 +366,9 @@ async def handle_command(
         await cmd_clear()
         return True
 
+    elif cmd == "/restart":
+        return await cmd_restart()
+
     elif cmd == "/mood":
         await cmd_mood(
             session=db_session,
@@ -280,6 +390,10 @@ async def handle_command(
             conversation_id=str(session_context.conversation.id),
             n_turns=n_turns,
         )
+        return True
+
+    elif cmd == "/debug":
+        await cmd_debug(session_context, args)
         return True
 
     else:

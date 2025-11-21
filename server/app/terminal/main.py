@@ -26,6 +26,7 @@ Examples:
 Commands:
   /help     - Show available commands
   /exit     - Exit the interface
+  /restart  - Restart the interface
   /stats    - Show conversation statistics
   /memories - Show last retrieved memories
   /mood     - Show Eva's current mood
@@ -44,7 +45,8 @@ Commands:
 
     # Run the chat loop
     try:
-        asyncio.run(run_chat_loop(debug=args.debug))
+        exit_code = asyncio.run(run_chat_loop(debug=args.debug))
+        sys.exit(exit_code)
     except KeyboardInterrupt:
         print("\nGoodbye!")
         sys.exit(0)

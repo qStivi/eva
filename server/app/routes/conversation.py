@@ -41,6 +41,28 @@ def authenticate_token(token: Optional[str]) -> Optional[str]:
     Validates token against SECRET_KEY from config.
     Returns username if valid, None otherwise.
 
+    SECURITY WARNING:
+    This is a TEMPORARY authentication mechanism for MVP/development.
+
+    Current issues:
+    - Uses API key (OPENAI_API_KEY is currently being used as SECRET_KEY)
+    - Token sent in query parameter (visible in logs, browser history)
+    - No session management or token rotation
+    - Not suitable for internet-facing deployment
+
+    TODO (Phase 9 - Production Security):
+    Implement proper authentication for internet deployment:
+    1. Key exchange protocol (Diffie-Hellman, TLS handshake)
+    2. JWT tokens with expiration and refresh
+    3. Rate limiting per client/IP
+    4. Consider: Cloudflare Access, OAuth2, or custom auth flow
+    5. Move token from query param to WebSocket subprotocol or initial message
+    6. Implement session invalidation and token blacklisting
+    7. Add CORS restrictions
+    8. Consider WebAuthn for passwordless auth
+
+    For now: Only use on trusted networks (localhost, VPN, Tailscale)
+
     Args:
         token: Authentication token from query parameter
 

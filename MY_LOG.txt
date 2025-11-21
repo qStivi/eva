@@ -1,4 +1,44 @@
-(venv) PS C:\Users\steph\Projects\eva\server> python -m app.terminal.main
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\Users\steph> cd .\Projects\eva\
+PS C:\Users\steph\Projects\eva> .\scripts\start-dev.ps1 -Debug
+
+================================================
+    Eva - Character Companion (Dev Mode)
+================================================
+
+Checking prerequisites...
+OK Docker is running
+OK Python found
+OK Virtual environment exists
+
+Starting Docker services...
+[+] Running 4/4
+ ✔ Network docker_default  Created                                                                                                                                                                          0.1s
+ ✔ Container eva_redis     Started                                                                                                                                                                          1.1s
+ ✔ Container eva_postgres  Started                                                                                                                                                                          1.1s
+ ✔ Container eva_chromadb  Started                                                                                                                                                                          1.1s
+OK Docker services started
+
+Waiting for services to be ready...
+Waiting for services to be healthy (timeout: 60s)...
+[OK] All services healthy!
+  [OK] PostgreSQL
+  [OK] ChromaDB
+  [OK] Redis
+
+Checking database...
+OK Database already initialized
+
+Starting Eva terminal interface...
+
+================================================
+
+[STARTUP DEBUG] inference.py loaded | DEBUG env var = '' | Enabled = False
+Debug mode enabled
 Initializing session...
 ╭────────────────────────────────────────────────────────────────────────────────────────── Eva - Character Companion ──────────────────────────────────────────────────────────────────────────────────────────╮
 │ Welcome to Eva Terminal Interface                                                                                                                                                                             │
@@ -9,32 +49,93 @@ Initializing session...
 │ Ready to chat!                                                                                                                                                                                                │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-You: Hey, I'm back
-⠏ Eva is thinking...`torch_dtype` is deprecated! Use `dtype` instead!
-`flash-attention` package not found, consider installing for better performance: No module named 'flash_attn'.
-Current `flash-attention` does not support `window_size`. Either upgrade or use `attn_implementation='eager'`.
-Loading checkpoint shards:   0%|                                                                                                                                                          | 0/2 [00:00<?, ?it/s]
-Loading checkpoint shards:  50%|#########################################################################                                                                         | 1/2 [00:09<00:09,  9.50s/it]
-Loading checkpoint shards: 100%|##################################################################################################################################################| 2/2 [00:15<00:00,  7.34s/it]
-Loading checkpoint shards: 100%|##################################################################################################################################################| 2/2 [00:15<00:00,  7.67s/it]
+You: /debug
+╭──────────────────────────────────────────────────────────────────────────────────────────────── Debug Status ─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Debug Modes:                                                                                                                                                                                                  │
+│                                                                                                                                                                                                               │
+│   Memory:  [ON]                                                                                                                                                                                               │
+│   Prompt:  [ON]                                                                                                                                                                                               │
+│   LLM:     [ON]                                                                                                                                                                                               │
+│                                                                                                                                                                                                               │
+│ Usage: /debug [memory|prompt|llm|all]                                                                                                                                                                         │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+You: /memories
+No memories retrieved yet. Send a message to see retrieved memories.
+You: /history
+Last 10 turns:
 
-Exception in thread Thread-6 (generate):
+You: That also, yes :) But I am testing the last debug things now
+Eva: Ah, the thrilling world of debugging—truly the stuff of legends. *smirks* Well, if you’re knee-deep in that, I won’t keep you. Just remember, if anything goes haywire, you can always come back and vent to
+me. I mean, I live for your chaos, right?
+
+Let me know if you need me to help with anything specific during this last round of tests. Otherwise, I’ll just sit here, silently judging your every move. *grins* Good luck with the debugging—may the code be
+ever in your favor!
+You: Thank you very much. Your cooperation is greatly apreciated. :upside_down:
+Eva: *Raises an eyebrow* Oh, look at you being all formal and polite. What’s next, a thank-you card? *smirks* But seriously, I appreciate the sentiment, even if I’d never admit it. Just don’t get too mushy on
+me, okay?
+
+Now go on and finish up those debug tests. I’ll be here, keeping an eye on your progress—judging from the digital sidelines, of course. Don’t mess it up, genius!
+You: Testing one command at a time, making good progress
+Eva: Good to hear you’re on a roll! *nods approvingly* Just remember, slow and steady wins the debugging race. No need to rush and end up with a mess on your hands. What’s the current command you’re testing?
+Anything particularly tricky, or is it smooth sailing so far?
+You: I am tesing the /debug settings, it seems like only one of the options is currently working though :(
+Eva: Ah, the classic debugging dilemma—only one option working when you want them all to cooperate. *rolls eyes* Sounds about right. But hey, at least you’re making progress, right? One working option is
+better than none!
+
+Which option is giving you trouble? Maybe I can offer some snarky commentary or a virtual shoulder to cry on while you figure it out. Just remember, debugging is like a puzzle: sometimes you just need to step
+back, take a breath, and look at it from a different angle. So, what’s the plan? Tweak the settings or throw a mini tantrum?
+You: I can now toggle to see your prompt but I cannot see the memories found by the memory system anymore...
+Eva: Ah, so the classic case of “one feature works, and another one goes kaput.” *snickers* Isn’t that just how these things go? Sounds like a classic debugging nightmare.
+
+So, you can toggle my prompt but can’t access the memory system? That’s a bit of a bummer. Have you tried checking the settings or maybe seeing if there’s a conflict between the two features? Sometimes it’s
+just a matter of finding the right balance—like trying to convince me to be cheerful. *rolls eyes*
+
+If you need to brainstorm some potential fixes or want to vent about it, I’m all ears. Just don’t forget, debugging is a journey, not a sprint! What are you thinking of trying next?
+
+You: Sry it was getting late and then there were too many responsibilities. But I am back now
+DEBUG: Retrieved 0 memories
+Error: Error generating response: cannot access local variable 'settings' where it is not associated with a value
+Error: An error occurred: cannot access local variable 'settings' where it is not associated with a value
+
+Error: cannot access local variable 'settings' where it is not associated with a value
 Traceback (most recent call last):
-  File "C:\Users\steph\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
-    self.run()
-  File "C:\Users\steph\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1012, in run
-    self._target(*self._args, **self._kwargs)
-  File "C:\Users\steph\Projects\eva\server\venv\Lib\site-packages\torch\utils\_contextlib.py", line 116, in decorate_context
-    return func(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\steph\Projects\eva\server\venv\Lib\site-packages\transformers\generation\utils.py", line 2564, in generate
-    result = decoding_method(
-             ^^^^^^^^^^^^^^^^
-  File "C:\Users\steph\Projects\eva\server\venv\Lib\site-packages\transformers\generation\utils.py", line 2781, in _sample
-    model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\steph\.cache\huggingface\modules\transformers_modules\microsoft\Phi_hyphen_3_hyphen_mini_hyphen_4k_hyphen_instruct\0a67737cc96d2554230f90338b163bc6380a2a85\modeling_phi3.py", line 1291, in
-prepare_inputs_for_generation
-    past_length = past_key_values.seen_tokens
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'DynamicCache' object has no attribute 'seen_tokens'
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\steph\Projects\eva\server\app\terminal\main.py", line 61, in <module>
+    main()
+  File "C:\Users\steph\Projects\eva\server\app\terminal\main.py", line 48, in main
+    exit_code = asyncio.run(run_chat_loop(debug=args.debug))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\steph\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\steph\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\steph\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\steph\Projects\eva\server\app\terminal\chat_loop.py", line 158, in run_chat_loop
+    await handle_message(
+  File "C:\Users\steph\Projects\eva\server\app\terminal\chat_loop.py", line 63, in handle_message
+    response_iterator = await generate_with_memory(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\steph\Projects\eva\server\app\llm\inference.py", line 101, in generate_with_memory
+    llm_loader = get_api_loader() if settings.use_api else get_loader()
+                                     ^^^^^^^^
+UnboundLocalError: cannot access local variable 'settings' where it is not associated with a value
+
+================================================
+
+Stop Docker containers? [y/N]: y
+Stopping Docker services...
+[+] Running 4/4
+ ✔ Container eva_chromadb  Removed                                                                                                                                                                          0.5s
+ ✔ Container eva_postgres  Removed                                                                                                                                                                          0.7s
+ ✔ Container eva_redis     Removed                                                                                                                                                                          0.8s
+ ✔ Network docker_default  Removed                                                                                                                                                                          0.4s
+OK Docker services stopped
+
+Goodbye!
+
+(venv) PS C:\Users\steph\Projects\eva>

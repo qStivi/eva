@@ -313,8 +313,25 @@ CHROMA_PORT=8000
 3. **Local model slow**: GTX 1050 Ti struggles with 3.8B model (using API until GPU upgrade)
 4. **No Logseq integration yet**: Planned for Phase 7
 
+### Security Considerations
+⚠️ **Current WebSocket authentication is NOT production-ready**:
+- Uses SECRET_KEY (currently same as OPENAI_API_KEY) for authentication
+- Token sent in query parameter (visible in logs, browser history)
+- No token rotation, expiration, or revocation
+- **Only safe for**: localhost, VPN, Tailscale, or trusted local networks
+- **NOT safe for**: Public internet deployment
+
+**Production security (Phase 9) will require**:
+- Key exchange protocol (Diffie-Hellman or TLS handshake)
+- JWT tokens with expiration and refresh
+- Rate limiting per client/IP
+- Proper authentication flow (OAuth2, Cloudflare Access, or WebAuthn)
+- Token in WebSocket subprotocol or initial message (not query param)
+- Session invalidation and token blacklisting
+- CORS restrictions and origin validation
+
 ### Technical Debt
-- None! Clean separation of concerns, well-tested
+- WebSocket authentication (temporary, see security considerations above)
 - Skill file system documented but not yet implemented (Phase 6-7)
 
 ---

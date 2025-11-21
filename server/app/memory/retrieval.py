@@ -40,7 +40,7 @@ class MemoryRetrieval:
         self,
         min_relevance_score: float = 0.3,  # Lowered from 0.5 - L2 distances make similarities lower
         max_memories: int = 10,
-        min_importance_for_storage: float = 0.3,
+        min_importance_for_storage: float = 0.2,  # Lowered from 0.3 - more permissive storage
         recency_weight: float = 0.2,
     ):
         """
@@ -91,10 +91,34 @@ class MemoryRetrieval:
 
         # Skip low-importance turns unless forced
         if not force and importance < self.min_importance_for_storage:
+            # Debug logging for filtered memories
+            import os
+            import sys
+            debug_enabled = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
+            if debug_enabled:
+                role = turn.role.value if hasattr(turn.role, 'value') else str(turn.role)
+                content_preview = turn.content[:80] if turn.content else "(empty)"
+                print(f"[DEBUG] Memory filtered (importance {importance:.2f} < {self.min_importance_for_storage})")
+                print(f"[DEBUG]   Role: {role}, Content: {content_preview}...")
+                sys.stdout.flush()
             return None
 
-        # Extract content summary
+        # Extract content summary (strips thinking tags)
         content_summary = self._extract_summary(turn)
+
+        # Skip if content is empty after stripping thinking tags
+        # (prevents storing thinking-only responses)
+        if not content_summary or not content_summary.strip():
+            # Debug logging for empty content
+            import os
+            import sys
+            debug_enabled = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
+            if debug_enabled:
+                role = turn.role.value if hasattr(turn.role, 'value') else str(turn.role)
+                print(f"[DEBUG] Memory filtered (empty after stripping thinking tags)")
+                print(f"[DEBUG]   Role: {role}, Original length: {len(turn.content)}")
+                sys.stdout.flush()
+            return None
 
         # Determine memory type
         memory_type = self._determine_memory_type(turn)
@@ -246,9 +270,12 @@ class MemoryRetrieval:
         elif word_count > 20:
             score += 0.1
 
-        # Role factor (user messages often contain new information)
+        # Role factor (user messages contain facts about user, highly valuable)
+        # Assistant messages less valuable (usually responses, not facts)
         if turn.role == MessageRole.USER:
-            score += 0.1
+            score += 0.20  # Reduced from 0.25 - gentler boost
+        else:
+            score -= 0.05  # Reduced from 0.1 - gentler penalty
 
         # Keyword indicators (important information)
         important_keywords = [
@@ -332,20 +359,33 @@ class MemoryRetrieval:
         """
         Extract a summary from a conversation turn.
 
-        For now, this just returns the content as-is.
-        In the future, this could use LLM-based summarization
-        for very long messages.
+        Strips thinking tags (<think>, ###ponder###) from assistant messages
+        to store only the actual response content in memory.
 
         Args:
             turn: ConversationTurn object
 
         Returns:
-            Summary string
+            Summary string with thinking tags removed
         """
-        # TODO (Phase 6+): Implement LLM-based summarization for long turns
+        import re
+
         content = turn.content
 
-        # For now, truncate very long messages
+        # Strip thinking tags if present (both formats)
+        # <think>...</think> OR ###ponder###...###/ponder###
+        think_pattern = r'<think>.*?</think>|###ponder###.*?###/ponder###'
+        content = re.sub(think_pattern, '', content, flags=re.DOTALL)
+
+        # Clean up excessive whitespace left by tag removal
+        content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)  # Multiple newlines -> double
+        content = content.strip()
+
+        # Skip if content is empty after stripping (was only thinking)
+        if not content:
+            return ""
+
+        # Truncate very long messages
         max_length = 500
         if len(content) > max_length:
             return content[:max_length] + "..."

@@ -59,7 +59,15 @@
       "Bash(git restore:*)",
       "Bash(docker-compose exec:*)",
       "Bash(docker-compose down:*)",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(docker-compose:*)",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:claude.com)",
+      "Bash(=1.0.0)",
+      "Bash(git mv:*)",
+      "Bash(git rm:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

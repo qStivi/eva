@@ -125,13 +125,19 @@ class SessionContext:
         user: User object
         character_state: CharacterState object
         conversation: Current conversation
-        debug_mode: Whether debug mode is enabled
+        debug_mode: Whether debug mode is enabled (legacy, enables all)
+        debug_memory: Show memory ingestion/retrieval debug output
+        debug_prompt: Show prompt assembly debug output
+        debug_llm: Show LLM generation debug output
         last_retrieved_memories: Last memories retrieved for /memories command
     """
     user: User
     character_state: CharacterState
     conversation: Conversation
     debug_mode: bool = False
+    debug_memory: bool = False
+    debug_prompt: bool = False
+    debug_llm: bool = False
     last_retrieved_memories: Optional[list] = None
 
 
@@ -154,5 +160,8 @@ async def initialize_session(
         character_state=character_state,
         conversation=conversation,
         debug_mode=debug,
+        debug_memory=debug,  # Enable all debug flags if --debug passed
+        debug_prompt=debug,
+        debug_llm=debug,
         last_retrieved_memories=None,
     )

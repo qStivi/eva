@@ -230,12 +230,14 @@ def display_command_help() -> None:
     commands = [
         ("/help", "Show this help message"),
         ("/exit or /quit", "Exit the terminal interface"),
+        ("/restart", "Restart the terminal interface"),
         ("/stats", "Show conversation statistics"),
         ("/memories", "Show last retrieved memories"),
         ("/new", "Start a new conversation"),
         ("/clear", "Clear the terminal screen"),
         ("/mood", "Show Eva's current mood and state"),
         ("/history [n]", "Show recent conversation history (default: 10 turns)"),
+        ("/debug [mode]", "Toggle debug output (memory|prompt|llm|all)"),
     ]
 
     for cmd, desc in commands:
