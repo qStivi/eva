@@ -16,7 +16,8 @@ Text-first design, voice optional. Self-hosted, privacy-focused.
 **Current Phase**: Phase 5 - WebSocket Conversation Endpoint
 **Approach**: Claude Code handles implementation, developer reviews and guides
 
-See `../IMPLEMENTATION_PLAN.md` for detailed phase breakdown and tasks.
+See `IMPLEMENTATION_PLAN.md` for detailed phase breakdown and tasks.
+See `CURRENT_STATUS.md` for quick overview and current state.
 
 **Phase 4 Decision**: Changed from WebSocket to Terminal Interface to validate memory system in production-like environment before adding network complexity. WebSocket moved to Phase 5.
 
