@@ -27,17 +27,17 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, user_id: str) -> str:
         """
-        Accept and register a new WebSocket connection.
+        Register a WebSocket connection.
+
+        Note: WebSocket should already be accepted before calling this.
 
         Args:
-            websocket: The FastAPI WebSocket instance
+            websocket: The FastAPI WebSocket instance (already accepted)
             user_id: User ID associated with this connection
 
         Returns:
             str: Unique connection ID for this session
         """
-        await websocket.accept()
-
         # Generate unique connection ID
         connection_id = str(uuid.uuid4())
 
