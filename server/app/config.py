@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     chroma_port: int = Field(default=8000, validation_alias="CHROMA_PORT")
 
     # LLM Configuration
+    use_api: bool = Field(default=False, validation_alias="USE_API")
+    openai_api_key: Optional[str] = Field(default=None, validation_alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
     model_path: Optional[str] = Field(default=None, validation_alias="MODEL_PATH")
     model_context_size: int = Field(default=4096, validation_alias="MODEL_CONTEXT_SIZE")
     model_threads: int = Field(default=8, validation_alias="MODEL_THREADS")

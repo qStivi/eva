@@ -16,6 +16,7 @@ chromadb>=0.4.0
 sentence-transformers>=2.2.0  # For semantic embeddings
 
 # LLM
+openai>=1.0.0  # OpenAI API for testing/development
 transformers>=4.36.0
 torch>=2.1.0
 accelerate>=0.25.0

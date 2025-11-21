@@ -67,6 +67,9 @@ async def handle_message(
                 user_message=user_input,
                 character_state_id=str(session_context.character_state.id),
                 stream=use_streaming,
+                debug_memory=session_context.debug_memory,
+                debug_prompt=session_context.debug_prompt,
+                debug_llm=session_context.debug_llm,
             )
 
         # Display response (streaming or non-streaming based on debug mode)
@@ -85,7 +88,7 @@ async def handle_message(
 
 
 
-async def run_chat_loop(debug: bool = False) -> None:
+async def run_chat_loop(debug: bool = False) -> int:
     """
     Main conversation loop.
 
@@ -100,6 +103,9 @@ async def run_chat_loop(debug: bool = False) -> None:
 
     Args:
         debug: Enable debug mode
+
+    Returns:
+        Exit code: 0 for normal exit, 99 for restart
     """
     # Create database session
     async with AsyncSessionLocal() as db_session:
@@ -122,6 +128,7 @@ async def run_chat_loop(debug: bool = False) -> None:
 
             # Main conversation loop
             continue_loop = True
+            exit_code = 0  # Default: normal exit
             while continue_loop:
                 try:
                     # Get user input asynchronously
@@ -135,11 +142,18 @@ async def run_chat_loop(debug: bool = False) -> None:
 
                     # Check if it's a command
                     if user_input.startswith("/"):
-                        continue_loop = await handle_command(
+                        result = await handle_command(
                             user_input,
                             session_context,
                             db_session,
                         )
+                        # Check if result is exit code (99 for restart, False for normal exit)
+                        if result == 99:
+                            exit_code = 99
+                            continue_loop = False
+                        elif result is False:
+                            continue_loop = False
+                        # Otherwise result is True, continue loop
                     else:
                         # Handle normal message
                         await handle_message(
@@ -162,9 +176,13 @@ async def run_chat_loop(debug: bool = False) -> None:
 
             # Commit any pending changes before exit
             await db_session.commit()
-            display_system_message("Session saved. See you next time!")
+            if exit_code == 0:
+                display_system_message("Session saved. See you next time!")
+
+            return exit_code
 
         except Exception as e:
             display_error(f"An error occurred: {e}")
             if debug:
                 raise
+            return 1  # Error exit code

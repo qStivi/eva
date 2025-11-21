@@ -17,11 +17,20 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm.loader import get_loader
+from app.llm.api_loader import get_api_loader
 from app.llm.prompts import PromptManager
 from app.memory.conversation_track import ConversationHistory
 from app.memory.context_track import ContextManager
 from app.memory.retrieval import MemoryRetrieval
 from app.models.conversation import MessageRole
+from app.config import settings
+
+# Debug startup test - verify env var loading
+import os
+import sys
+_debug_env = os.getenv("DEBUG", "")
+print(f"[STARTUP DEBUG] inference.py loaded | DEBUG env var = '{_debug_env}' | Enabled = {_debug_env.lower() in ('true', '1', 'yes')}")
+sys.stdout.flush()
 
 
 async def generate_with_memory(
@@ -34,8 +43,11 @@ async def generate_with_memory(
     temperature: Optional[float] = None,
     stream: bool = False,
     save_to_memory: bool = True,
-    max_conversation_turns: int = 20,
+    max_conversation_turns: int = 100,  # Increased for API mode (was 20 for local models)
     max_retrieved_memories: int = 5,
+    debug_memory: bool = False,
+    debug_prompt: bool = False,
+    debug_llm: bool = False,
 ) -> str | Iterator[str]:
     """
     Generate Eva's response with full two-track memory integration.
@@ -64,6 +76,9 @@ async def generate_with_memory(
         save_to_memory: If True, ingest conversation turns as memories
         max_conversation_turns: Maximum recent turns to include in prompt
         max_retrieved_memories: Maximum memories to retrieve from semantic search
+        debug_memory: Show memory retrieval debug output
+        debug_prompt: Show full prompt structure before generation
+        debug_llm: Show LLM generation debug info
 
     Returns:
         Generated response string, or Iterator[str] if streaming
@@ -84,8 +99,8 @@ async def generate_with_memory(
     context_manager = ContextManager()
     memory_retrieval = MemoryRetrieval(max_memories=max_retrieved_memories)
 
-    # Get LLM loader
-    llm_loader = get_loader()
+    # Get LLM loader (API or local based on settings)
+    llm_loader = get_api_loader() if settings.use_api else get_loader()
 
     # STEP 1: Save user message to conversation history (Track 1)
     user_turn = await conversation_history.save_turn(
@@ -115,6 +130,27 @@ async def generate_with_memory(
         n_results=max_retrieved_memories,
     )
 
+    # Debug: Show memory retrieval
+    if debug_memory:
+        import sys
+        print("\n" + "="*80)
+        print("DEBUG: MEMORY RETRIEVAL")
+        print("="*80)
+        print(f"\n[MEMORY SEARCH]")
+        print("-" * 40)
+        print(f"Query: {user_message[:100]}..." if len(user_message) > 100 else f"Query: {user_message}")
+        print(f"Retrieved: {len(retrieved_memories)} memories")
+        if retrieved_memories:
+            print("\n[RETRIEVED MEMORIES]")
+            for i, mem in enumerate(retrieved_memories, 1):
+                print(f"\n{i}. (relevance: {mem.get('distance', 'N/A'):.3f})")
+                content = mem.get('content_summary', mem.get('content', ''))
+                print(f"   {content[:150]}..." if len(content) > 150 else f"   {content}")
+        else:
+            print("   (No relevant memories found)")
+        print("\n" + "="*80 + "\n")
+        sys.stdout.flush()
+
     # STEP 4: Build context (Track 2)
     context = await context_manager.build_context(
         session=session,
@@ -123,26 +159,107 @@ async def generate_with_memory(
         retrieved_memories=retrieved_memories,
     )
 
-    # Debug logging (print to console, not just logs)
-    import os
-    if os.getenv("DEBUG", "false").lower() == "true":
-        print(f"\n[DEBUG] Retrieved {len(retrieved_memories)} memories for context")
-        print(f"[DEBUG] Built context length: {len(context)} chars")
-        print(f"[DEBUG] Context preview:\n{context[:800]}\n")
-
     # STEP 5: Build complete prompt with two-track memory
-    # Pass tokenizer for proper chat template formatting (fixes special token leakage)
+    # For API mode: Don't use tokenizer, return messages directly for OpenAI
+    # For local mode: Use tokenizer for proper chat template formatting (fixes special token leakage)
+    use_tokenizer = llm_loader.tokenizer if not settings.use_api else None
     prompt = PromptManager.build_prompt_with_memory(
         system_prompt=PromptManager.SYSTEM_PROMPT,
         context=context,
         conversation_history=conversation_messages,
-        tokenizer=llm_loader.tokenizer,  # Use model's chat template
+        tokenizer=use_tokenizer,
     )
 
-    # Debug: print final prompt preview
-    if os.getenv("DEBUG", "false").lower() == "true":
-        print(f"[DEBUG] Final prompt length: {len(str(prompt))} chars")
-        print(f"[DEBUG] Prompt preview:\n{str(prompt)[:1500]}\n")
+    # Comprehensive debug output
+    import sys
+    if debug_prompt:
+        print("\n" + "="*80)
+        print("DEBUG: FULL LLM PROMPT STRUCTURE")
+        print("="*80)
+
+        # Section 1: System Prompt
+        print("\n[1] SYSTEM PROMPT:")
+        print("-" * 40)
+        sys_prompt = PromptManager.SYSTEM_PROMPT
+        print(sys_prompt[:500] + ("..." if len(sys_prompt) > 500 else ""))
+
+        # Section 2: Context (Track 2)
+        print("\n[2] CONTEXT (Track 2 - Retrieved Memories):")
+        print("-" * 40)
+        print(f"Memories retrieved: {len(retrieved_memories)}")
+        if context:
+            print(context[:800] + ("..." if len(context) > 800 else ""))
+        else:
+            print("(No context)")
+
+        # Section 3: Conversation History (Track 1)
+        print("\n[3] CONVERSATION HISTORY (Track 1):")
+        print("-" * 40)
+        print(f"Total turns: {len(conversation_messages)}")
+        for i, msg in enumerate(conversation_messages[-5:], 1):  # Show last 5
+            role = msg.get("role", "unknown")
+            content_preview = msg.get("content", "")[:100]
+            print(f"  Turn {i} [{role}]: {content_preview}..." if len(msg.get("content", "")) > 100 else f"  Turn {i} [{role}]: {content_preview}")
+
+        # Section 4: Generation Parameters
+        print("\n[4] GENERATION PARAMETERS:")
+        print("-" * 40)
+        print(f"  max_tokens: {max_tokens if max_tokens else 'default'}")
+        print(f"  temperature: {temperature if temperature else 'default'}")
+        print(f"  stream: {stream}")
+
+        # Section 5: Final Prompt Preview
+        print("\n[5] FINAL ASSEMBLED PROMPT:")
+        print("-" * 40)
+        if isinstance(prompt, list):
+            # Messages format (API mode)
+            print("Format: OpenAI Messages (list of dicts)")
+            for i, msg in enumerate(prompt, 1):
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                content_preview = content[:200] + "..." if len(content) > 200 else content
+                print(f"\nMessage {i} [{role}]:")
+                print(f"  {content_preview}")
+            # Calculate total length
+            total_chars = sum(len(msg.get("content", "")) for msg in prompt)
+            print(f"\nTotal prompt length: {total_chars} chars (~{total_chars // 4} tokens)")
+        else:
+            # String format (local mode)
+            print("Format: Chat template string")
+            prompt_str = str(prompt)
+            print(prompt_str[:2000] + ("..." if len(prompt_str) > 2000 else ""))
+            print(f"\nTotal prompt length: {len(prompt_str)} chars (~{len(prompt_str) // 4} tokens)")
+        print("\n" + "="*80 + "\n")
+        sys.stdout.flush()  # Ensure output appears immediately
+
+    # Debug: Show LLM generation info
+    if debug_llm:
+        import sys
+        print("\n" + "="*80)
+        print("DEBUG: LLM GENERATION")
+        print("="*80)
+        print(f"\n[MODEL INFO]")
+        print("-" * 40)
+        if settings.use_api:
+            print(f"Mode: API")
+            print(f"Model: {settings.openai_model}")
+            print(f"API Provider: OpenAI")
+        else:
+            print(f"Mode: Local")
+            print(f"Model Path: {settings.model_path}")
+            print(f"Context Size: {settings.model_context_size}")
+        print(f"\n[GENERATION PARAMETERS]")
+        print("-" * 40)
+        print(f"max_tokens: {max_tokens if max_tokens else 'default (1024 for API, 256 for local)'}")
+        print(f"temperature: {temperature if temperature is not None else 'default (0.7)'}")
+        print(f"stream: {stream}")
+        print(f"\n[PROMPT STATS]")
+        print("-" * 40)
+        prompt_str = str(prompt)
+        print(f"Total characters: {len(prompt_str)}")
+        print(f"Estimated tokens: ~{len(prompt_str) // 4}")  # Rough estimate
+        print("\n" + "="*80 + "\n")
+        sys.stdout.flush()
 
     # STEP 6: Generate response via LLM
     response = llm_loader.generate(
@@ -283,7 +400,7 @@ async def generate_simple(
         >>> print(response)
         "Hey! How's it going?"
     """
-    llm_loader = get_loader()
+    llm_loader = get_api_loader() if settings.use_api else get_loader()
 
     # Create simple prompt
     prompt = PromptManager.create_simple_prompt(user_message)
