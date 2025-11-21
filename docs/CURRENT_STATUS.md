@@ -1,16 +1,16 @@
 # Eva - Current Project Status
 
 **Last Updated**: 2025-11-21
-**Current Phase**: Phase 5 (WebSocket Conversation Endpoint)
+**Current Phase**: Phase 6 (Flutter Client)
 **Development Approach**: Claude Code handles implementation, developer reviews and guides
 
 ---
 
 ## Quick Status
 
-✅ **Working**: Terminal interface with full memory system, API integration, debug tools
-🔄 **Next**: WebSocket endpoint for real-time client communication
-📅 **Timeline**: ~8-12 weeks for full MVP (currently ~40% complete)
+✅ **Working**: Terminal interface + WebSocket endpoint with full memory system, streaming, API integration
+🔄 **Next**: Flutter cross-platform client
+📅 **Timeline**: ~8-12 weeks for full MVP (currently ~50% complete)
 
 ---
 
@@ -68,27 +68,49 @@
   - LLM: Show model info, generation params
 - **Performance**: Increased history (100 turns), better context
 
+### Phase 5: WebSocket Conversation Endpoint ✅
+**Completed**: 2025-11-21 (~6 hours)
+
+**Implementation**:
+- **WebSocket Infrastructure**: `/ws/conversation` endpoint with connection manager
+- **Message Protocol**: Pydantic models for validation
+  - Client → Server: `{type: "message", content: "..."}`
+  - Server → Client: `{type: "response_chunk", content: "...", done: false/true}`
+  - Server → Client: `{type: "error", code: "...", message: "..."}`
+  - Server → Client: `{type: "system", event: "...", data: {...}}`
+- **Authentication**: Token-based using SECRET_KEY from config
+- **Session Management**: Redis-backed with 1-hour TTL auto-cleanup
+- **Streaming**: Reuses `generate_with_memory` from terminal
+- **Error Handling**: Sanitized errors (no stack traces to client)
+- **Testing**: Python test client, verified streaming (45 chunks, 7.4s)
+
+**Key Files**:
+- `server/app/routes/conversation.py`: WebSocket endpoint
+- `server/app/websocket/connection_manager.py`: Connection lifecycle
+- `server/app/websocket/message_protocol.py`: Message validation
+- `server/app/websocket/session_manager.py`: Redis session state
+- `server/test_websocket_client.py`: Test client
+
 ---
 
-## Next Phase: Phase 5 - WebSocket Conversation Endpoint
+## Next Phase: Phase 6 - Flutter Client
 
-**Estimated Time**: 6-8 hours
-**Goal**: Real-time conversation via WebSocket with streaming responses
+**Estimated Time**: 8-12 hours
+**Goal**: Cross-platform Flutter app with text chat interface
 
 ### Key Tasks:
-- [ ] WebSocket endpoint infrastructure (/ws/conversation)
-- [ ] Connection manager (authentication, lifecycle)
-- [ ] Message protocol (JSON format for client-server communication)
-- [ ] Streaming response integration
-- [ ] Session management with Redis
-- [ ] Integration with existing memory system
-- [ ] Testing with websocat/simple client
+- [ ] Flutter project setup (iOS, Android, Desktop, Web)
+- [ ] WebSocket client integration
+- [ ] Chat UI with streaming response display
+- [ ] State management (Riverpod/Provider)
+- [ ] Local storage for offline mode
+- [ ] Testing on multiple platforms
 
 **Why This Phase**:
-- Foundation for Flutter mobile/desktop app
-- Enables real-time streaming to clients
-- Proven memory system ready to use
-- Terminal interface validates everything works
+- WebSocket endpoint is ready and working
+- Multi-platform deployment (mobile, desktop, web)
+- Native-feeling UI with Flutter
+- Foundation for voice features (Phase 7+)
 
 ---
 
@@ -286,14 +308,14 @@ CHROMA_PORT=8000
 ## Known Issues & Considerations
 
 ### Current Limitations
-1. **Single-user only**: Hardcoded user "qStivi"/"Stephan" (multi-user support in Phase 6+)
-2. **No WebSocket yet**: Terminal interface only (Phase 5 will add this)
+1. **Single-user only**: Hardcoded user "qStivi"/"Stephan" (multi-user support in Phase 7+)
+2. **No GUI yet**: Terminal + WebSocket only (Flutter client in Phase 6)
 3. **Local model slow**: GTX 1050 Ti struggles with 3.8B model (using API until GPU upgrade)
-4. **No Logseq integration yet**: Planned for Phase 6-7
+4. **No Logseq integration yet**: Planned for Phase 7
 
 ### Technical Debt
 - None! Clean separation of concerns, well-tested
-- Skill file system documented but not yet implemented (Phase 5-6)
+- Skill file system documented but not yet implemented (Phase 6-7)
 
 ---
 
@@ -303,7 +325,7 @@ CHROMA_PORT=8000
 - [x] Natural conversations with Eva
 - [x] Two-track memory system working
 - [x] Terminal interface operational
-- [ ] WebSocket for real-time communication (Phase 5)
+- [x] WebSocket for real-time communication
 - [ ] Flutter client (Phase 6)
 - [ ] Journal integration (Phase 7)
 
