@@ -11,14 +11,20 @@
 This plan breaks the project into 6 phases, each with a testable deliverable. Phases build on each other, so testing between phases is critical.
 
 **Timeline Estimate**: 8-12 weeks for full MVP
-**Current Phase**: Phase 4 (WebSocket Conversation Endpoint)
+**Current Phase**: Phase 5 (WebSocket Conversation Endpoint)
+**Last Updated**: 2025-11-21
 
 **Progress**:
 - ✅ Phase 0: Foundation & Infrastructure (Complete: 2025-11-06)
 - ✅ Phase 1: Basic LLM Integration (Complete: 2025-11-07)
 - ✅ Phase 2: Database Schema & Models (Complete: 2025-11-08)
 - ✅ Phase 3: Memory System - Two-Track Architecture (Complete: 2025-11-08)
-- ⏳ Phase 4: WebSocket Conversation Endpoint (Next)
+- ✅ Phase 4: Terminal Interface (Complete: 2025-11-21)
+  - **Bonus**: OpenAI API integration (testing until new GPU)
+  - **Bonus**: Eva tsundere fox character personality
+  - **Bonus**: Advanced debug system (memory/prompt/llm modes)
+  - **Bonus**: Increased history (100 turns), max_tokens (1024)
+- ⏳ Phase 5: WebSocket Conversation Endpoint (Next)
 
 ---
 
@@ -311,9 +317,12 @@ response2 = generate_with_memory("What should I eat?")
 
 ---
 
-## Phase 4: Terminal Interface (Week 5)
+## Phase 4: Terminal Interface (Week 5) ✅ COMPLETE
 
 **Goal**: Interactive terminal interface for testing and single-user conversations
+
+**Status**: ✅ Complete (2025-11-21)
+**Time**: ~3 sessions over 2 weeks (Phase 4 baseline + API integration + debug improvements)
 
 **Decision**: Changed from WebSocket to Terminal Interface to validate Phases 0-3 in production-like environment before adding network complexity. WebSocket moved to Phase 5.
 
@@ -326,84 +335,84 @@ response2 = generate_with_memory("What should I eat?")
 ### Tasks
 
 #### 4.1 Setup & Dependencies
-- [ ] Add `prompt-toolkit>=3.0.52` to requirements.txt
-- [ ] Add `rich>=14.1.0` to requirements.txt
-- [ ] Install dependencies: `pip install -r requirements.txt`
-- [ ] Create `server/app/terminal/` package
-- [ ] Create `__init__.py`, `main.py`, `chat_loop.py`, `commands.py`, `display.py`, `session.py`
+- [x] Add `prompt-toolkit>=3.0.52` to requirements.txt
+- [x] Add `rich>=14.1.0` to requirements.txt
+- [x] Install dependencies: `pip install -r requirements.txt`
+- [x] Create `server/app/terminal/` package
+- [x] Create `__init__.py`, `main.py`, `chat_loop.py`, `commands.py`, `display.py`, `session.py`
 
 #### 4.2 Session Management
-- [ ] Create `server/app/terminal/session.py`
-- [ ] Implement `load_or_create_user()` - hardcoded "qStivi" / "Stephan"
-- [ ] Create user on first run if doesn't exist
-- [ ] Implement `load_or_create_conversation()`
-- [ ] Load character state from database
-- [ ] Track active conversation_id in session context
+- [x] Create `server/app/terminal/session.py`
+- [x] Implement `load_or_create_user()` - hardcoded "qStivi" / "Stephan"
+- [x] Create user on first run if doesn't exist
+- [x] Implement `load_or_create_conversation()`
+- [x] Load character state from database
+- [x] Track active conversation_id in session context
 
 #### 4.3 Display Utilities
-- [ ] Create `server/app/terminal/display.py`
-- [ ] Implement `display_user_message()` - cyan color
-- [ ] Implement `display_assistant_message()` - green bold color
-- [ ] Implement `display_system_message()` - yellow dim
-- [ ] Implement `display_streaming_response()` - rich.Live integration
-- [ ] Implement `display_welcome()` - banner with rich.Panel
-- [ ] Implement `display_stats_table()` - rich.Table for /stats
-- [ ] Implement `display_memories()` - format retrieved memories
+- [x] Create `server/app/terminal/display.py`
+- [x] Implement `display_user_message()` - cyan color
+- [x] Implement `display_assistant_message()` - green bold color
+- [x] Implement `display_system_message()` - yellow dim
+- [x] Implement `display_streaming_response()` - rich.Live integration
+- [x] Implement `display_welcome()` - banner with rich.Panel
+- [x] Implement `display_stats_table()` - rich.Table for /stats
+- [x] Implement `display_memories()` - format retrieved memories
 
 #### 4.4 Basic Chat Loop
-- [ ] Create `server/app/terminal/chat_loop.py`
-- [ ] Initialize prompt_toolkit PromptSession
-- [ ] Display welcome banner
-- [ ] Implement main conversation loop:
+- [x] Create `server/app/terminal/chat_loop.py`
+- [x] Initialize prompt_toolkit PromptSession
+- [x] Display welcome banner
+- [x] Implement main conversation loop:
   - Prompt for input with `prompt_async()`
   - Detect commands (starts with /)
   - Route to command handler or message handler
   - Continue until /exit
-- [ ] Handle Ctrl+C gracefully
-- [ ] Commit database changes on shutdown
+- [x] Handle Ctrl+C gracefully
+- [x] Commit database changes on shutdown
 
 #### 4.5 Message Handler
-- [ ] In `chat_loop.py`, create `handle_message()`
-- [ ] Call `generate_with_memory()` with streaming=True
-- [ ] Display "Eva is thinking..." with rich.Status
-- [ ] Stream response chunks with `display_streaming_response()`
-- [ ] Handle errors gracefully (LLM timeout, database errors)
-- [ ] Add blank line after response for readability
+- [x] In `chat_loop.py`, create `handle_message()`
+- [x] Call `generate_with_memory()` with streaming=True
+- [x] Display "Eva is thinking..." with rich.Status
+- [x] Stream response chunks with `display_streaming_response()`
+- [x] Handle errors gracefully (LLM timeout, database errors)
+- [x] Add blank line after response for readability
 
 #### 4.6 Command System
-- [ ] Create `server/app/terminal/commands.py`
-- [ ] Implement `/help` - Show available commands with descriptions
-- [ ] Implement `/exit` or `/quit` - Exit gracefully
-- [ ] Implement `/stats` - Show conversation statistics (turn count, timestamps)
-- [ ] Implement `/memories` - Show retrieved memories for last message
-- [ ] Implement `/new` - Start new conversation
-- [ ] Implement `/clear` - Clear screen (keep conversation in DB)
-- [ ] Implement `/mood` - Show character state (mood, preferences)
-- [ ] Implement `/history` - Show recent conversation turns
-- [ ] Optional: `/debug` - Toggle debug mode (show context lengths, prompts)
+- [x] Create `server/app/terminal/commands.py`
+- [x] Implement `/help` - Show available commands with descriptions
+- [x] Implement `/exit` or `/quit` - Exit gracefully
+- [x] Implement `/stats` - Show conversation statistics (turn count, timestamps)
+- [x] Implement `/memories` - Show retrieved memories for last message
+- [x] Implement `/new` - Start new conversation
+- [x] Implement `/clear` - Clear screen (keep conversation in DB)
+- [x] Implement `/mood` - Show character state (mood, preferences)
+- [x] Implement `/history` - Show recent conversation turns
+- [x] Optional: `/debug` - Toggle debug mode (show context lengths, prompts)
 
 #### 4.7 Main Entry Point
-- [ ] Create `server/app/terminal/main.py`
-- [ ] Add argument parser (argparse)
-- [ ] Add `--debug` flag for debug mode
-- [ ] Initialize database connection
-- [ ] Call chat_loop with asyncio.run()
-- [ ] Handle initialization errors (database not running, etc.)
+- [x] Create `server/app/terminal/main.py`
+- [x] Add argument parser (argparse)
+- [x] Add `--debug` flag for debug mode
+- [x] Initialize database connection
+- [x] Call chat_loop with asyncio.run()
+- [x] Handle initialization errors (database not running, etc.)
 
 #### 4.8 Testing & Polish
-- [ ] Test multi-turn conversations
-- [ ] Verify memory retrieval with `/memories` command
-- [ ] Test all commands work correctly
-- [ ] Test conversation persistence (exit and resume)
-- [ ] Test error handling (empty input, database errors)
-- [ ] Test on Windows terminal
-- [ ] Verify streaming response displays smoothly
-- [ ] Test command history (up/down arrows)
+- [x] Test multi-turn conversations
+- [x] Verify memory retrieval with `/memories` command
+- [x] Test all commands work correctly
+- [x] Test conversation persistence (exit and resume)
+- [x] Test error handling (empty input, database errors)
+- [x] Test on Windows terminal
+- [x] Verify streaming response displays smoothly
+- [x] Test command history (up/down arrows)
 
 #### 4.9 Documentation
-- [ ] Update TIME_LOG.md with Phase 4 entry
-- [ ] Update IMPLEMENTATION_PLAN.md with Phase 4 completion
-- [ ] Create `docs/TERMINAL_USAGE.md` (optional usage guide)
+- [x] Update TIME_LOG.md with Phase 4 entry
+- [x] Update IMPLEMENTATION_PLAN.md with Phase 4 completion
+- [ ] Create `docs/TERMINAL_USAGE.md` (optional usage guide - deferred)
 
 **Deliverable**: Working terminal interface with full memory integration and debugging commands
 

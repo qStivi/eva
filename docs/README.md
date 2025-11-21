@@ -12,7 +12,7 @@ Text-first design, voice optional. Self-hosted, privacy-focused.
 
 \## Development Status
 
-**Updated**: 2025-11-08
+**Updated**: 2025-11-21
 **Current Phase**: Phase 5 - WebSocket Conversation Endpoint
 **Approach**: Claude Code handles implementation, developer reviews and guides
 
@@ -25,7 +25,10 @@ See `../IMPLEMENTATION_PLAN.md` for detailed phase breakdown and tasks.
 - ✅ Phase 1: Basic LLM Integration (2025-11-07)
 - ✅ Phase 2: Database Schema & Models (2025-11-08)
 - ✅ Phase 3: Two-Track Memory System (2025-11-08)
-- ✅ Phase 4: Terminal Interface (2025-11-08)
+- ✅ Phase 4: Terminal Interface (2025-11-21)
+  - **Bonus**: OpenAI API integration (testing until new GPU)
+  - **Bonus**: Eva tsundere character personality
+  - **Bonus**: Advanced debug system (memory/prompt/llm modes)
 
 **Next**: WebSocket Conversation Endpoint for real-time communication
 

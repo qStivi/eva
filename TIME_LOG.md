@@ -279,6 +279,70 @@
 
 ---
 
+## Phase 4 Continued: OpenAI API Integration & Debug System (2025-11-21)
+
+**Session**: 2025-11-21 (Continuation session)
+**Duration**: ~3-4 hours (multiple iterations)
+
+**Context**: User wanted faster iteration for testing without 5-minute model loading. Decided to add OpenAI API support as switchable alternative until new GPU arrives.
+
+### Tasks Completed:
+
+#### 4.10 OpenAI API Integration - ~1.5 hours
+- [x] Create `server/app/llm/api_loader.py` (APILoader class with OpenAI client)
+- [x] Add config settings (USE_API, OPENAI_API_KEY, OPENAI_MODEL)
+- [x] Update `inference.py` for conditional loader switching
+- [x] Fix prompt format for OpenAI (messages list vs string template)
+- [x] Increase max_tokens: 256 → 1024 for API mode
+- [x] Test API integration (fast responses, no loading delay)
+
+#### 4.11 Debug System Enhancement - ~1.5 hours
+- [x] Add `debug_memory` parameter and output (retrieval queries, relevance scores)
+- [x] Add `debug_llm` parameter and output (model info, generation params)
+- [x] Fix `debug_prompt` to show proper OpenAI message structure
+- [x] Connect `/debug` command flags to inference function
+- [x] Fix parameter passing bugs (settings scope, missing debug_memory param)
+
+#### 4.12 Character & Configuration - ~30 min
+- [x] Implement Eva tsundere fox character prompt
+- [x] Fix "user" vs "you" consistency (use "you" throughout)
+- [x] Increase conversation history: 20 → 100 turns for API mode
+- [x] Document pricing research (GPT-4o-mini vs Claude comparison)
+- [x] Create skill file system architecture (SKILL_FILE_SYSTEM.md)
+
+**Results**:
+- API integration working perfectly (1-2s response vs 5min loading)
+- All three debug modes functional (memory, prompt, llm)
+- Eva personality working great (sass, deflection, hidden care)
+- Increased history length for better context
+- ~$1.35/month cost for 100 conversations/day
+
+**Files Created**:
+- `server/app/llm/api_loader.py` (OpenAI API wrapper)
+- `docs/SKILL_FILE_SYSTEM.md` (modular prompt architecture)
+- `base Character Idea.txt` (character concept documentation)
+- `anthropicPricing.txt` + `openaiPrices.txt` (pricing research)
+
+**Files Updated**:
+- `server/app/config.py` (API settings)
+- `server/app/llm/inference.py` (debug system, loader switching, history length)
+- `server/app/terminal/chat_loop.py` (debug flag passing)
+- `server/requirements.txt` (openai>=1.0.0)
+- `server/.env.example` (API configuration documented)
+- `server/app/llm/prompts.py` (Eva character prompt)
+- `docs/design-document.md` (skill file tasks added to phases)
+
+**Bugs Fixed**:
+- UnboundLocalError: settings import scope issue (fixed: moved to top-level)
+- NameError: debug_memory not defined (fixed: added parameter)
+- Prompt structure confusion (fixed: messages list for API, string for local)
+
+**Deliverable**: Production-ready terminal interface with API testing capability and comprehensive debug system
+
+**Phase 4 Total Time**: ~5-6 hours across multiple sessions (initial: 2h, enhancements: 3-4h)
+
+---
+
 ## Time Tracking Notes
 
 - Include both "doing" and "waiting" time (e.g., pip install, docker pull)
