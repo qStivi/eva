@@ -3,13 +3,27 @@
 // onto the app, hosts the shared EvaController, and opens on the app shell.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'eva_theme.dart';
 import 'responsive_home.dart';
 import 'state/eva_controller.dart';
 
-void main() => runApp(const EvaApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Lock phones to portrait (landscape on a phone is cramped and off-brand);
+  // leave tablets and desktop free to rotate. A no-op on web/desktop.
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  final shortestSide = (view.physicalSize / view.devicePixelRatio).shortestSide;
+  if (shortestSide > 0 && shortestSide < 600) {
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+  runApp(const EvaApp());
+}
 
 class EvaApp extends StatefulWidget {
   const EvaApp({super.key});

@@ -114,9 +114,33 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _bottomNav() {
+    // Full-width bar (so the bgBar + top hairline span the screen), but the nav
+    // items themselves are capped and centred to match the 560px content column
+    // — otherwise on tablets/wide screens they sprawl across the whole width.
+    return Container(
+      decoration: const BoxDecoration(
+        color: EvaColors.bgBar,
+        border: Border(top: BorderSide(color: EvaColors.surfaceLine)),
+      ),
+      // Align (not Center) with heightFactor so it shrink-wraps vertically —
+      // the bottom-bar slot is unbounded in height, which would make Center
+      // expand to infinity.
+      child: Align(
+        alignment: Alignment.center,
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: _navBar(),
+        ),
+      ),
+    );
+  }
+
+  Widget _navBar() {
     return NavigationBarTheme(
       data: NavigationBarThemeData(
-        backgroundColor: EvaColors.bgBar,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         indicatorColor: EvaColors.accentSoft,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
@@ -136,6 +160,8 @@ class _AppShellState extends State<AppShell> {
       ),
       child: NavigationBar(
         height: 62,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
