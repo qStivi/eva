@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Eva
+Comment=Your character-first AI companion
+Exec=eva
+Icon=io.github.qstivi.Eva
+Categories=Utility;Chat;
+Terminal=false
+StartupWMClass=eva

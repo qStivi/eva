@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.qstivi.Eva</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <name>Eva</name>
+  <summary>Your character-first AI companion</summary>
+  <description>
+    <p>
+      Eva is a character-first AI companion — not a tool with a personality bolted
+      on. You talk to her in natural conversation; she remembers what matters to
+      you, keeps your story in her notebook, and takes initiative. Self-hosted and
+      privacy-focused.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.qstivi.Eva.desktop</launchable>
+  <icon type="stock">io.github.qstivi.Eva</icon>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-06-20"/>
+  </releases>
+</component>

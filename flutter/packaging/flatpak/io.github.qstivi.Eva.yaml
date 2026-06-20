@@ -1,0 +1,42 @@
+# Flatpak manifest for Eva (universal Linux desktop).
+#
+# This packages the PREBUILT Flutter Linux release bundle (compiled in the
+# eva-build distrobox) against the GNOME runtime, which ships GTK3. Building the
+# bundle on ubuntu 24.04 (glibc 2.39) and running it on the GNOME 47 runtime
+# (newer glibc) is forward-compatible. Build it with scripts/build-linux-flatpak.sh.
+app-id: io.github.qstivi.Eva
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: eva
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Eva talks to a self-hosted Letta on 127.0.0.1:8283 (host loopback, same shape
+  # as the LM Studio flatpak). Currently mock-backed; this is forward-looking.
+  - --share=network
+
+modules:
+  - name: eva
+    buildsystem: simple
+    build-commands:
+      - cp -r bundle /app/eva
+      - mkdir -p /app/bin
+      - install -Dm755 eva-launcher /app/bin/eva
+      - install -Dm644 io.github.qstivi.Eva.desktop /app/share/applications/io.github.qstivi.Eva.desktop
+      - install -Dm644 io.github.qstivi.Eva.metainfo.xml /app/share/metainfo/io.github.qstivi.Eva.metainfo.xml
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.qstivi.Eva.png
+    sources:
+      - type: dir
+        path: ../../build/linux/x64/release/bundle
+        dest: bundle
+      - type: file
+        path: eva-launcher
+      - type: file
+        path: io.github.qstivi.Eva.desktop
+      - type: file
+        path: io.github.qstivi.Eva.metainfo.xml
+      - type: file
+        path: icon-256.png
