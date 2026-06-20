@@ -5,8 +5,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'app_shell.dart';
 import 'eva_theme.dart';
+import 'responsive_home.dart';
 import 'state/eva_controller.dart';
 
 void main() => runApp(const EvaApp());
@@ -40,7 +40,7 @@ class _EvaAppState extends State<EvaApp> {
       title: 'Eva',
       debugShowCheckedModeBanner: false,
       theme: theme,
-      home: AppShell(controller: _controller),
+      home: ResponsiveHome(controller: _controller),
     );
   }
 }

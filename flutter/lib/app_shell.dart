@@ -4,13 +4,9 @@
 // the content column is centred and capped on wide screens. Ported from
 // AppShell.jsx + DesktopShell's responsive intent.
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'data/mock_chat.dart';
-import 'eva_theme.dart';
 import 'eva_tokens.dart';
 import 'screens/chat_screen.dart';
 import 'screens/memory_screen.dart';
@@ -30,55 +26,8 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _tab = 0;
-  StreamSubscription<String>? _toastSub;
 
   EvaController get c => widget.controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _toastSub = c.toasts.listen(_showRememberedToast);
-  }
-
-  @override
-  void dispose() {
-    _toastSub?.cancel();
-    super.dispose();
-  }
-
-  void _showRememberedToast(String text) {
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.clearSnackBars();
-    messenger.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: EvaColors.surfaceCard,
-        elevation: 0,
-        width: 360,
-        duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(EvaRadii.md),
-          side: const BorderSide(color: EvaColors.remembered),
-        ),
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.edit_outlined, size: 16, color: EvaColors.remembered),
-            const SizedBox(width: EvaSpace.s2),
-            Flexible(
-              child: Text(
-                text,
-                style: GoogleFonts.newsreader(
-                  textStyle: evaVoice(EvaType.base, italic: true, color: EvaColors.textPrimary),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {

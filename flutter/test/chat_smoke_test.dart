@@ -25,7 +25,7 @@ void main() {
   testWidgets('Sending a message appends it to the conversation', (tester) async {
     // Tall viewport so every turn renders (the message list is a lazy ListView;
     // a newly-sent bubble below the fold otherwise isn't built/findable).
-    tester.view.physicalSize = const Size(1000, 3000);
+    tester.view.physicalSize = const Size(700, 3000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -64,7 +64,7 @@ void main() {
   });
 
   testWidgets('Settings model switcher reveals the curated list', (tester) async {
-    tester.view.physicalSize = const Size(1000, 3000);
+    tester.view.physicalSize = const Size(700, 3000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -85,5 +85,27 @@ void main() {
     await tester.tap(find.text('Qwen3 · 8B'));
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Qwen3 · 8B'), findsOneWidget);
+  });
+
+  testWidgets('Wide viewport shows the DesktopShell (rail + notebook peek)',
+      (tester) async {
+    tester.view.physicalSize = const Size(1300, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const EvaApp());
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Landscape layout: presence rail with the notebook peek + model shortcut,
+    // and the conversation still present.
+    expect(find.text('HER NOTEBOOK'), findsOneWidget);
+    expect(find.textContaining('running gpt-oss'), findsOneWidget);
+    expect(find.textContaining('look who finally showed up'), findsOneWidget);
+
+    // The gear opens Settings as an overlay panel over the chat.
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('gpt-oss · 20B'), findsOneWidget);
   });
 }
