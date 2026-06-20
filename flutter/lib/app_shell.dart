@@ -37,7 +37,7 @@ class _AppShellState extends State<AppShell> {
         child: Column(
           children: [
             _header(),
-            Expanded(child: _centered(_body())),
+            Expanded(child: _body()),
           ],
         ),
       ),
@@ -45,9 +45,11 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  /// Cap the content width on wide screens so the phone-first layout doesn't
-  /// stretch awkwardly on desktop web.
-  Widget _centered(Widget child) {
+  /// Cap the *reading* surfaces (notebook / her / settings) on wide screens so
+  /// forms and lists don't stretch awkwardly. The chat is deliberately left
+  /// full-width: its message bubbles self-cap to a reading measure, but the
+  /// composer should grow with the screen (it looks pinched otherwise on tablets).
+  Widget _capped(Widget child) {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -62,9 +64,9 @@ class _AppShellState extends State<AppShell> {
       index: _tab,
       children: [
         ChatScreen(controller: c),
-        MemoryScreen(controller: c),
-        PersonalityScreen(controller: c),
-        SettingsScreen(controller: c),
+        _capped(MemoryScreen(controller: c)),
+        _capped(PersonalityScreen(controller: c)),
+        _capped(SettingsScreen(controller: c)),
       ],
     );
   }
