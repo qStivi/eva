@@ -51,4 +51,39 @@ void main() {
     // Drain the canned-reply + typewriter timers so none are pending at teardown.
     await tester.pump(const Duration(seconds: 3));
   });
+
+  testWidgets('Notebook tab shows the memory list', (tester) async {
+    await tester.pumpWidget(const EvaApp());
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Notebook'));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.text('What I remember'), findsOneWidget);
+    expect(find.textContaining('border collie named Pixel'), findsOneWidget);
+  });
+
+  testWidgets('Settings model switcher reveals the curated list', (tester) async {
+    tester.view.physicalSize = const Size(1000, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const EvaApp());
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Settings'));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    // Active daily-driver model is shown; opening the pill reveals alternatives.
+    expect(find.text('gpt-oss · 20B'), findsOneWidget);
+    await tester.tap(find.text('gpt-oss · 20B'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Qwen3 · 8B'), findsOneWidget);
+
+    // Pick another brain; the pill updates.
+    await tester.tap(find.text('Qwen3 · 8B'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Qwen3 · 8B'), findsOneWidget);
+  });
 }

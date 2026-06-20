@@ -1,65 +1,49 @@
-// ChatScreen — the conversation. The heart of the product. Ported from the
-// design export's ChatScreen.jsx + chat-logic.js. Until the real Letta backend
-// is wired in, sending cycles a canned in-character reply, revealed with a calm
-// typewriter; "remembered" replies surface Eva's scribble toast.
+// ChatScreen — the conversation. The heart of the product. Reads everything
+// from the shared EvaController; the AppShell owns the title bar, so by default
+// this screen shows no header of its own (showHeader: true is for standalone use).
 
-import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../data/mock_chat.dart';
-import '../eva_theme.dart';
 import '../eva_tokens.dart';
+import '../state/eva_controller.dart';
 import '../widgets/composer.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/presence.dart';
 import '../widgets/typing_indicator.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final EvaController controller;
+  final bool showHeader;
+
+  const ChatScreen({super.key, required this.controller, this.showHeader = false});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final List<ChatMessage> _messages = List.of(openingConversation);
-  final TextEditingController _draft = TextEditingController();
   final ScrollController _scroll = ScrollController();
-  final List<Timer> _timers = [];
-  final Random _rng = Random();
 
-  EvaMood _evaMood = EvaMood.neutral;
-  bool _thinking = false;
-  int _replyIdx = 0;
+  EvaController get c => widget.controller;
 
-  // The reply currently being typed out, if any.
-  String? _typingText;
-  EvaMood _typingMood = EvaMood.neutral;
-
-  bool get _busy => _thinking || _typingText != null;
+  @override
+  void initState() {
+    super.initState();
+    c.addListener(_onChange);
+  }
 
   @override
   void dispose() {
-    for (final t in _timers) {
-      t.cancel();
-    }
-    _draft.dispose();
+    c.removeListener(_onChange);
     _scroll.dispose();
     super.dispose();
   }
 
-  String _now() {
-    final d = TimeOfDay.now();
-    final h = d.hourOfPeriod == 0 ? 12 : d.hourOfPeriod;
-    final m = d.minute.toString().padLeft(2, '0');
-    final ap = d.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$h:$m $ap';
-  }
-
-  void _scrollToBottom() {
+  void _onChange() {
+    // Keep the latest turn in view as messages arrive / reveal.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
         _scroll.animateTo(
@@ -71,117 +55,24 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _send() {
-    final text = _draft.text.trim();
-    if (text.isEmpty || _busy) return;
-    setState(() {
-      _messages.add(ChatMessage(from: Speaker.you, text: text, time: _now()));
-      _draft.clear();
-      _thinking = true;
-      _evaMood = EvaMood.thinking;
-    });
-    _scrollToBottom();
-
-    final reply = cannedReplies[_replyIdx % cannedReplies.length];
-    _replyIdx++;
-    _timers.add(Timer(
-      Duration(milliseconds: 850 + _rng.nextInt(500)),
-      () => _typewrite(reply),
-    ));
-  }
-
-  void _typewrite(CannedReply reply) {
-    if (!mounted) return;
-    final full = reply.text;
-    final mood = reply.mood;
-    final chunk = max(1, (full.length / 34).ceil());
-    var i = 0;
-
-    setState(() {
-      _thinking = false;
-      _evaMood = mood;
-      _typingMood = mood;
-      _typingText = '';
-    });
-
-    void tick() {
-      if (!mounted) return;
-      i = min(full.length, i + chunk);
-      setState(() => _typingText = full.substring(0, i));
-      _scrollToBottom();
-      if (i < full.length) {
-        _timers.add(Timer(const Duration(milliseconds: 42), tick));
-      } else {
-        _timers.add(Timer(const Duration(milliseconds: 140), () {
-          if (!mounted) return;
-          setState(() {
-            _typingText = null;
-            _messages.add(ChatMessage(
-              from: Speaker.eva,
-              text: full,
-              time: _now(),
-              remembered: reply.remembered,
-              mood: mood,
-            ));
-          });
-          _scrollToBottom();
-          if (reply.remembered) _showRememberedToast();
-        }));
-      }
-    }
-
-    tick();
-  }
-
-  void _showRememberedToast() {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.clearSnackBars();
-    messenger.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: EvaColors.surfaceCard,
-        elevation: 0,
-        duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(EvaRadii.md),
-          side: const BorderSide(color: EvaColors.remembered),
-        ),
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.edit_outlined, size: 16, color: EvaColors.remembered),
-            const SizedBox(width: EvaSpace.s2),
-            Flexible(
-              child: Text(
-                rememberedToast,
-                style: GoogleFonts.newsreader(
-                  textStyle: evaVoice(EvaType.base, italic: true, color: EvaColors.textPrimary),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final moodKey = _thinking ? EvaMood.thinking : _evaMood;
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            _header(moodKey),
-            Expanded(child: _messageList()),
-            Composer(controller: _draft, onSend: _send, busy: _busy),
-          ],
+    return Column(
+      children: [
+        if (widget.showHeader) _header(),
+        Expanded(
+          child: ListenableBuilder(
+            listenable: c,
+            builder: (context, _) => _messageList(),
+          ),
         ),
-      ),
+        Composer(controller: c.draft, onSend: c.send, busy: c.busy),
+      ],
     );
   }
 
-  Widget _header(EvaMood moodKey) {
+  Widget _header() {
+    final moodKey = c.thinking ? EvaMood.thinking : c.evaMood;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       decoration: const BoxDecoration(
@@ -200,14 +91,8 @@ class _ChatScreenState extends State<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('Eva', style: Theme.of(context).textTheme.titleMedium),
-              AnimatedSwitcher(
-                duration: EvaMotion.base,
-                child: Text(
-                  moodLine(moodKey),
-                  key: ValueKey(moodKey),
-                  style: const TextStyle(fontSize: EvaType.xs, color: EvaColors.textMuted),
-                ),
-              ),
+              Text(moodLine(moodKey),
+                  style: const TextStyle(fontSize: EvaType.xs, color: EvaColors.textMuted)),
             ],
           ),
         ],
@@ -216,28 +101,26 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _messageList() {
-    // Items: the settled messages, then an optional thinking/typing turn.
-    final extra = (_thinking && _typingText == null) || _typingText != null ? 1 : 0;
+    final messages = c.messages;
+    final extra = c.busy ? 1 : 0;
     return ListView.separated(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      itemCount: _messages.length + extra,
+      itemCount: messages.length + extra,
       separatorBuilder: (_, _) => const SizedBox(height: EvaSpace.s3),
       itemBuilder: (context, index) {
-        if (index < _messages.length) {
-          return _turn(_messages[index], index);
-        }
+        if (index < messages.length) return _turn(messages[index], index);
         // The live thinking / typing turn.
-        if (_typingText != null) {
+        if (c.typingText != null) {
           return _evaRow(
             MessageBubble(
               speaker: Speaker.eva,
-              text: _typingText!,
-              mood: _typingMood,
+              text: c.typingText!,
+              mood: c.typingMood,
               caret: true,
             ),
-            showAvatar: _messages.isEmpty || _messages.last.from != Speaker.eva,
-            mood: _typingMood,
+            showAvatar: messages.isEmpty || messages.last.from != Speaker.eva,
+            mood: c.typingMood,
           );
         }
         return _evaRow(const TypingIndicator(), showAvatar: true, mood: EvaMood.thinking);
@@ -250,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return MessageBubble(speaker: Speaker.system, text: m.text);
     }
     if (m.from == Speaker.eva) {
-      final prev = index > 0 ? _messages[index - 1] : null;
+      final prev = index > 0 ? c.messages[index - 1] : null;
       return _evaRow(
         MessageBubble(
           speaker: Speaker.eva,
@@ -295,7 +178,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   double _readingMax(BuildContext context) {
-    // ~46 characters of reading measure, capped to the viewport.
     final w = MediaQuery.of(context).size.width;
     return min(w * 0.86, 600);
   }

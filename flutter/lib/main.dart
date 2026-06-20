@@ -1,17 +1,31 @@
 // Eva — character-first AI companion. Web-first Flutter app (native mobile
-// later). This entry wires the Catppuccin Macchiato design system (eva_theme /
-// eva_tokens) onto the app and opens on the Chat screen — the heart of it.
+// later). Wires the Catppuccin Macchiato design system (eva_theme / eva_tokens)
+// onto the app, hosts the shared EvaController, and opens on the app shell.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_shell.dart';
 import 'eva_theme.dart';
-import 'screens/chat_screen.dart';
+import 'state/eva_controller.dart';
 
 void main() => runApp(const EvaApp());
 
-class EvaApp extends StatelessWidget {
+class EvaApp extends StatefulWidget {
   const EvaApp({super.key});
+
+  @override
+  State<EvaApp> createState() => _EvaAppState();
+}
+
+class _EvaAppState extends State<EvaApp> {
+  final EvaController _controller = EvaController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +40,7 @@ class EvaApp extends StatelessWidget {
       title: 'Eva',
       debugShowCheckedModeBanner: false,
       theme: theme,
-      home: const ChatScreen(),
+      home: AppShell(controller: _controller),
     );
   }
 }
