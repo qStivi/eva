@@ -91,10 +91,13 @@ class MemoryNote extends StatelessWidget {
                                   )),
                             ],
                           ),
-                        Text(when,
-                            style: const TextStyle(fontSize: EvaType.xs, color: EvaColors.textMuted)),
-                        Text('#$tag',
-                            style: const TextStyle(fontSize: EvaType.xs, color: EvaColors.accent)),
+                        if (when.isNotEmpty)
+                          Text(when,
+                              style:
+                                  const TextStyle(fontSize: EvaType.xs, color: EvaColors.textMuted)),
+                        if (tag.isNotEmpty)
+                          Text('#$tag',
+                              style: const TextStyle(fontSize: EvaType.xs, color: EvaColors.accent)),
                       ],
                     ),
                   ],

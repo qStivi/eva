@@ -19,12 +19,14 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _modelOpen = false;
   late final TextEditingController _name = TextEditingController(text: widget.controller.userName);
+  late final TextEditingController _server = TextEditingController(text: widget.controller.serverUrl);
 
   EvaController get c => widget.controller;
 
   @override
   void dispose() {
     _name.dispose();
+    _server.dispose();
     super.dispose();
   }
 
@@ -36,6 +38,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
         children: [
           Text('Settings', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: EvaSpace.s5),
+
+          const Eyebrow('Connection'),
+          _card(child: _serverSection()),
           const SizedBox(height: EvaSpace.s5),
 
           const Eyebrow('Her brain'),
@@ -86,6 +92,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
         border: Border.all(color: EvaColors.surfaceLine),
       ),
       child: child,
+    );
+  }
+
+  Widget _serverSection() {
+    final (label, color) = switch (c.status) {
+      ConnectionStatus.live => ('Connected · agent "${c.agentName}"', EvaColors.remembered),
+      ConnectionStatus.connecting => ('Connecting…', EvaColors.accent),
+      ConnectionStatus.error => ('Not connected — ${c.serverError ?? 'unknown error'}', EvaColors.danger),
+      ConnectionStatus.mock => ('Offline — running on canned demo data', EvaColors.textMuted),
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: EvaSpace.s2),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(top: 1),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: EvaSpace.s2),
+              Expanded(
+                child: Text(label, style: TextStyle(fontSize: EvaType.sm, color: color)),
+              ),
+            ],
+          ),
+        ),
+        TextField(
+          controller: _server,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          decoration: const InputDecoration(
+            labelText: 'Eva server',
+            hintText: 'http://localhost:8283  ·  phone: http://<PC-LAN-IP>:8283',
+          ),
+          onSubmitted: (v) => c.reconfigure(v),
+        ),
+        const SizedBox(height: EvaSpace.s2),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: c.status == ConnectionStatus.connecting
+                ? null
+                : () => c.reconfigure(_server.text),
+            icon: const Icon(Icons.sync, size: 16),
+            label: Text(c.status == ConnectionStatus.live ? 'Reconnect' : 'Connect'),
+          ),
+        ),
+      ],
     );
   }
 

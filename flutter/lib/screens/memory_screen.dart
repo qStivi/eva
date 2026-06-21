@@ -63,15 +63,17 @@ class _MemoryScreenState extends State<MemoryScreen> {
               ],
             ),
             const SizedBox(height: EvaSpace.s3),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                _tagChip('All', 'all'),
-                for (final t in tags) _tagChip('#$t', t),
-              ],
-            ),
-            const SizedBox(height: EvaSpace.s4),
+            // Tag filter is a mock-only nicety; Letta memory has no tags.
+            if (!c.live)
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  _tagChip('All', 'all'),
+                  for (final t in tags) _tagChip('#$t', t),
+                ],
+              ),
+            if (!c.live) const SizedBox(height: EvaSpace.s4),
             if (shown.isEmpty)
               _emptyState()
             else
@@ -81,10 +83,10 @@ class _MemoryScreenState extends State<MemoryScreen> {
                   child: MemoryNote(
                     text: m.text,
                     when: m.when,
-                    tag: m.tag,
+                    tag: c.live ? '' : m.tag, // no tags/pins from Letta
                     pinned: m.pinned,
                     onOpen: () => _openDetail(m),
-                    onPin: () => c.togglePin(m.id),
+                    onPin: c.live ? null : () => c.togglePin(m.id),
                     onForget: () => _confirmForget(m),
                   ),
                 ),
@@ -216,14 +218,15 @@ class _MemoryScreenState extends State<MemoryScreen> {
             const SizedBox(height: EvaSpace.s5),
             Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: () {
-                    c.togglePin(m.id);
-                    Navigator.of(sheetContext).pop();
-                  },
-                  icon: Icon(m.pinned ? Icons.push_pin : Icons.push_pin_outlined, size: 16),
-                  label: Text(m.pinned ? 'Unpin' : 'Pin'),
-                ),
+                if (!c.live)
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      c.togglePin(m.id);
+                      Navigator.of(sheetContext).pop();
+                    },
+                    icon: Icon(m.pinned ? Icons.push_pin : Icons.push_pin_outlined, size: 16),
+                    label: Text(m.pinned ? 'Unpin' : 'Pin'),
+                  ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () {
