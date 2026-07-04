@@ -1,0 +1,4 @@
+#!/bin/sh
+# Run the Flutter bundle's real binary; $ORIGIN in its rpath resolves to
+# /app/eva so it finds lib/ and data/ beside it.
+exec /app/eva/eva "$@"

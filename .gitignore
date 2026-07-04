@@ -12,6 +12,15 @@ eggs/
 .eggs/
 lib/
 lib64/
+# ^ these are Python-venv ignores but `lib/` is unanchored and would also swallow
+# the Flutter app's source dir; keep tracking it.
+!/flutter/lib/
+
+# Flutter native-build artifacts (Flatpak packaging is reproducible from sources)
+/flutter/packaging/flatpak/repo/
+/flutter/packaging/flatpak/builddir/
+/flutter/packaging/flatpak/.flatpak-builder/
+*.flatpak
 parts/
 sdist/
 var/
