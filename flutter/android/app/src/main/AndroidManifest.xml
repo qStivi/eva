@@ -2,7 +2,11 @@
     <application
         android:label="Eva"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- Eva talks to a self-hosted Letta over plain http:// on the LAN
+             (e.g. http://192.168.x.x:8283); Android blocks cleartext by default
+             on API >= 28, so opt in. Self-hosted, single-user network. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
