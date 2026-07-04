@@ -19,7 +19,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Eva'), findsOneWidget);
-    expect(find.textContaining('look who finally showed up'), findsOneWidget);
+    expect(find.textContaining('look who finally showed up', findRichText: true), findsOneWidget);
   });
 
   testWidgets('Sending a message appends it to the conversation', (tester) async {
@@ -101,7 +101,7 @@ void main() {
     // and the conversation still present.
     expect(find.text('HER NOTEBOOK'), findsOneWidget);
     expect(find.textContaining('running gpt-oss'), findsOneWidget);
-    expect(find.textContaining('look who finally showed up'), findsOneWidget);
+    expect(find.textContaining('look who finally showed up', findRichText: true), findsOneWidget);
 
     // The gear opens Settings as an overlay panel over the chat.
     await tester.tap(find.byTooltip('Settings'));

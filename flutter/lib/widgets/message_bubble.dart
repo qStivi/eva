@@ -5,6 +5,7 @@
 //  - System: centered, faint, no bubble.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../data/mock_chat.dart';
@@ -128,17 +129,61 @@ class MessageBubble extends StatelessWidget {
       fontStyle: FontStyle.italic,
       color: EvaColors.accent3.withValues(alpha: 0.92), // lavender
     );
-    return Text.rich(
-      TextSpan(
-        style: base,
-        children: [
+
+    // While the reply is still typing out, keep the fast plain-text path with the
+    // blinking caret (re-parsing markdown every frame would be janky). Markdown is
+    // rendered once the message is committed.
+    if (caret) {
+      return Text.rich(
+        TextSpan(style: base, children: [
           ..._voiceSpans(text, aside),
-          if (caret)
-            const WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: _BlinkingCaret(),
-            ),
-        ],
+          const WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: _BlinkingCaret(),
+          ),
+        ]),
+      );
+    }
+
+    return MarkdownBody(
+      data: text,
+      selectable: false,
+      styleSheet: _evaMarkdown(base, aside),
+    );
+  }
+
+  /// Markdown styled for Eva: serif body, her `*stage directions*` (markdown em)
+  /// as quiet lavender italics, mono code, restrained headings.
+  static MarkdownStyleSheet _evaMarkdown(TextStyle base, TextStyle aside) {
+    final mono = TextStyle(
+      fontFamily: EvaFonts.mono,
+      fontFamilyFallback: EvaFonts.monoFallback,
+      fontSize: EvaType.sm,
+      color: EvaColors.textPrimary,
+    );
+    return MarkdownStyleSheet(
+      p: base,
+      pPadding: EdgeInsets.zero,
+      strong: base.copyWith(fontWeight: EvaWeights.semibold),
+      em: aside,
+      h1: base.copyWith(fontSize: EvaType.xl, fontWeight: EvaWeights.semibold, height: EvaType.leadingSnug),
+      h2: base.copyWith(fontSize: EvaType.lg, fontWeight: EvaWeights.semibold, height: EvaType.leadingSnug),
+      h3: base.copyWith(fontSize: EvaType.md, fontWeight: EvaWeights.semibold),
+      listBullet: base,
+      a: base.copyWith(color: EvaColors.accent, decoration: TextDecoration.underline),
+      code: mono.copyWith(backgroundColor: EvaColors.surfaceInset),
+      codeblockPadding: const EdgeInsets.all(EvaSpace.s3),
+      codeblockDecoration: BoxDecoration(
+        color: EvaColors.surfaceInset,
+        borderRadius: BorderRadius.circular(EvaRadii.sm),
+      ),
+      blockquotePadding: const EdgeInsets.only(left: EvaSpace.s3),
+      blockquote: base.copyWith(color: EvaColors.textSecondary),
+      blockquoteDecoration: const BoxDecoration(
+        border: Border(left: BorderSide(color: EvaColors.surfaceLineStrong, width: 3)),
+      ),
+      horizontalRuleDecoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: EvaColors.surfaceLine)),
       ),
     );
   }
