@@ -19,11 +19,13 @@ Living list of what's next, roughly ordered. Updated 2026-07-21.
   of clinging to the top with dead space below.
 - **Android launcher icon** *(2026-07-21)* — Eva's portrait on the Catppuccin-crust
   background (legacy + adaptive), replacing Flutter's default mark.
+- **Home Assistant integration** *(2026-07-21)* — Eva keeps the shared todo/shopping
+  list and controls exposed devices (lights, media, climate, sensors) via HA's built-in
+  **Model Context Protocol Server** (SSE), registered in Letta like the SearXNG MCP.
+  `scripts/register-ha-mcp.sh` + a persona directive ("the house, and your list").
+  Token in chmod-600 `~/.config/letta/ha.env`. Verified: reads + writes the list live.
 
 ## Capabilities
-- **Home Assistant integration** *(wanted)* — to-do list + home automation. Almost
-  certainly an MCP tool (HA has a REST/WebSocket API + an official MCP server);
-  gives Eva real control over the house and a shared todo list.
 - **More MCP tools** as needs arise (the SearXNG pattern is repeatable).
 - **Cloud escalation** *(decided 2026-07-21)* — keep the local model as Eva's default
   brain, but escalate genuinely hard turns to a cloud flagship. Route via **OpenRouter**
