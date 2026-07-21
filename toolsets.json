@@ -1,0 +1,51 @@
+{
+  "_comment": "Source of truth for Eva's lazy tool loading. 'core' is always attached; each group in 'groups' is loaded on demand by the use_toolset meta-tool. register-toolsets.sh injects 'groups' into tools/use_toolset.py and applies 'core' to the eva agent. 'index' is the in-character description Eva sees (persona) so she knows when to load each.",
+  "core": [
+    "memory_insert",
+    "memory_replace",
+    "conversation_search",
+    "searxng_web_search",
+    "web_url_read",
+    "GetDateTime",
+    "todo_get_items",
+    "HassListAddItem",
+    "HassListCompleteItem",
+    "HassListRemoveItem",
+    "use_toolset"
+  ],
+  "groups": {
+    "home": ["HassTurnOn", "HassTurnOff", "HassClimateSetTemperature", "GetLiveContext"],
+    "media": [
+      "HassMediaNext", "HassMediaPause", "HassMediaPrevious", "HassMediaUnpause",
+      "HassMediaSearchAndPlay", "HassSetVolume", "HassSetVolumeRelative",
+      "HassMediaPlayerMute", "HassMediaPlayerUnmute"
+    ],
+    "house_extras": ["HassBroadcast", "HassCancelAllTimers"]
+  },
+  "index": {
+    "home": "the house itself — lights, switches, warmth (climate), and reading what's going on in the rooms",
+    "media": "music and video — play, pause, skip, volume on the speakers and screens",
+    "house_extras": "shouting a message to the speakers, and cancelling timers"
+  },
+  "_keywords_comment": "Used by eva-web/toolset_router.py to pre-attach a group when the user's message matches (word-boundary, case-insensitive). Bias slightly toward matching — a spare tool costs little, a missing one blocks Eva.",
+  "keywords": {
+    "home": [
+      "light", "lights", "lamp", "lamps", "switch", "switches", "plug", "outlet",
+      "thermostat", "temperature", "temp", "degrees", "heat", "heating", "warm",
+      "warmer", "cool", "cooler", "colder", "climate", "door", "lock", "unlock",
+      "locked", "unlocked", "sensor", "sensors", "blinds", "curtain", "curtains",
+      "bedroom", "living room", "kitchen", "hallway", "garage", "house", "the room",
+      "turn on", "turn off", "switch on", "switch off"
+    ],
+    "media": [
+      "play", "pause", "resume", "unpause", "music", "song", "songs", "track",
+      "album", "artist", "playlist", "volume", "louder", "quieter", "mute", "unmute",
+      "skip", "next track", "next song", "previous", "movie", "film", "show",
+      "spotify", "speaker", "speakers", "playing", "video", "cast"
+    ],
+    "house_extras": [
+      "broadcast", "announce", "announcement", "intercom", "timer", "timers",
+      "cancel timer", "cancel all timers"
+    ]
+  }
+}

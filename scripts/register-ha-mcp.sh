@@ -76,18 +76,16 @@ TOOLS="$(curl -s "$LETTA/v1/tools/mcp/servers/$SERVER_NAME/tools" \
 [ -n "$TOOLS" ] || { echo "no HA tools found — is the MCP Server integration on + entities exposed to Assist?" >&2; exit 1; }
 echo "$TOOLS" | sed 's/^/  - /'
 
-# 3) For each tool: register it into Letta's tool registry, then attach to eva.
-echo "== registering + attaching each tool to eva =="
+# 3) Register each tool into Letta's registry (so ids exist). We do NOT attach them
+#    all to eva — attachment/membership is driven by toolsets.json via
+#    scripts/register-toolsets.sh (lazy loading), so the context stays lean.
+echo "== registering each HA tool into Letta's registry (not attaching) =="
 while IFS= read -r TOOL; do
   [ -n "$TOOL" ] || continue
   TID="$(curl -s -X POST "$LETTA/v1/tools/mcp/servers/$SERVER_NAME/$TOOL" \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || true)"
-  if [ -z "$TID" ]; then echo "  ! $TOOL: could not register (skipped)"; continue; fi
-  curl -s -X PATCH "$LETTA/v1/agents/$AID/tools/attach/$TID" >/dev/null \
-    && echo "  + $TOOL -> attached ($TID)" \
-    || echo "  ! $TOOL: attach failed"
+  if [ -z "$TID" ]; then echo "  ! $TOOL: could not register (skipped)"; else echo "  + $TOOL registered ($TID)"; fi
 done <<< "$TOOLS"
 
-echo "== done. eva's tools now: =="
-curl -s "$LETTA/v1/agents/$AID/tools" \
-  | python3 -c "import sys,json; [print('  -', t.get('name')) for t in json.load(sys.stdin)]"
+echo "== done registering HA tools. =="
+echo "Next: ./scripts/register-toolsets.sh   (applies the lean core + makes 'home'/'media' loadable)"
