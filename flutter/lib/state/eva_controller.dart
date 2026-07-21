@@ -335,7 +335,8 @@ class EvaController extends ChangeNotifier {
       _runTypewriter(reply.text, EvaMood.neutral, false, () async {
         await _loadMemory();
         if (memories.length > before) _emitToast(rememberedToast);
-      });
+      }, tools: reply.tools);
+      return;
     } catch (e) {
       thinking = false;
       evaMood = EvaMood.neutral;
@@ -357,7 +358,8 @@ class EvaController extends ChangeNotifier {
   }
 
   /// Reveal [full] one calm chunk at a time, then commit the message + onDone.
-  void _runTypewriter(String full, EvaMood mood, bool remembered, FutureOr<void> Function() onDone) {
+  void _runTypewriter(String full, EvaMood mood, bool remembered, FutureOr<void> Function() onDone,
+      {List<String> tools = const []}) {
     final chunk = max(1, (full.length / 34).ceil());
     var i = 0;
     thinking = false;
@@ -381,6 +383,7 @@ class EvaController extends ChangeNotifier {
             time: _now(),
             remembered: remembered,
             mood: mood,
+            tools: tools,
           ));
           notifyListeners();
           onDone();

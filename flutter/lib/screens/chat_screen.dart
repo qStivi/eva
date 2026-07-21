@@ -102,30 +102,55 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _messageList() {
     final messages = c.messages;
-    final extra = c.busy ? 1 : 0;
-    return ListView.separated(
-      controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      itemCount: messages.length + extra,
-      separatorBuilder: (_, _) => const SizedBox(height: EvaSpace.s3),
-      itemBuilder: (context, index) {
-        if (index < messages.length) return _turn(messages[index], index);
-        // The live thinking / typing turn.
-        if (c.typingText != null) {
-          return _evaRow(
-            MessageBubble(
-              speaker: Speaker.eva,
-              text: c.typingText!,
-              mood: c.typingMood,
-              caret: true,
-            ),
-            showAvatar: messages.isEmpty || messages.last.from != Speaker.eva,
-            mood: c.typingMood,
-          );
-        }
-        return _evaRow(const TypingIndicator(), showAvatar: true, mood: EvaMood.thinking);
-      },
+    // Build the turns, then the live thinking/typing turn, interleaved with
+    // separators — the same content the old ListView produced.
+    final turns = <Widget>[
+      for (var i = 0; i < messages.length; i++) _turn(messages[i], i),
+      if (c.busy) _liveTurn(messages),
+    ];
+    final children = <Widget>[];
+    for (var i = 0; i < turns.length; i++) {
+      if (i > 0) children.add(const SizedBox(height: EvaSpace.s3));
+      children.add(turns[i]);
+    }
+
+    // Bottom-anchored: content sits above the composer and grows upward, so a
+    // short conversation has no top dead-space. minHeight pins it to the bottom;
+    // a long conversation overflows and scrolls as before.
+    const padding = EdgeInsets.fromLTRB(16, 8, 16, 16);
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        controller: _scroll,
+        padding: padding,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: constraints.maxHeight - padding.vertical,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
+        ),
+      ),
     );
+  }
+
+  /// The live thinking / typing turn shown while Eva is composing.
+  Widget _liveTurn(List<ChatMessage> messages) {
+    if (c.typingText != null) {
+      return _evaRow(
+        MessageBubble(
+          speaker: Speaker.eva,
+          text: c.typingText!,
+          mood: c.typingMood,
+          caret: true,
+        ),
+        showAvatar: messages.isEmpty || messages.last.from != Speaker.eva,
+        mood: c.typingMood,
+      );
+    }
+    return _evaRow(const TypingIndicator(), showAvatar: true, mood: EvaMood.thinking);
   }
 
   Widget _turn(ChatMessage m, int index) {
@@ -141,6 +166,7 @@ class _ChatScreenState extends State<ChatScreen> {
           time: m.time,
           remembered: m.remembered,
           mood: m.mood,
+          tools: m.tools,
         ),
         showAvatar: prev == null || prev.from != Speaker.eva,
         mood: m.mood,

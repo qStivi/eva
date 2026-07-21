@@ -26,6 +26,13 @@ Living list of what's next, roughly ordered. Updated 2026-07-04.
   certainly an MCP tool (HA has a REST/WebSocket API + an official MCP server);
   gives Eva real control over the house and a shared todo list.
 - **More MCP tools** as needs arise (the SearXNG pattern is repeatable).
+- **Cloud escalation** *(decided 2026-07-21)* — keep the local model as Eva's default
+  brain, but escalate genuinely hard turns to a cloud flagship. Route via **OpenRouter**
+  (one OpenAI-compatible endpoint, no per-token markup, ~5.5% top-up fee) so it drops
+  into the existing Letta OpenAI-proxy pattern as just another `base_url` + key. Two
+  cloud tiers: **standard** (DeepSeek V4 Pro / GLM-5.2 — near-frontier, cheap) and
+  **max** (Kimi K3-class, on demand only). Local stays the default; cloud is opt-in per
+  hard task, not per message.
 - ~~Journal / Logseq tool~~ — **dropped**: the backend (memory + tools) covers this.
 
 ## The big arc — "Eva with hands, working in the background"

@@ -48,12 +48,16 @@ class ChatMessage {
   final bool remembered;
   final EvaMood mood;
 
+  /// Tool names Eva invoked on this turn (e.g. a web search), surfaced as a tag.
+  final List<String> tools;
+
   const ChatMessage({
     required this.from,
     required this.text,
     this.time,
     this.remembered = false,
     this.mood = EvaMood.neutral,
+    this.tools = const [],
   });
 }
 

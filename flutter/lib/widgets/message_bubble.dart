@@ -19,6 +19,7 @@ class MessageBubble extends StatelessWidget {
   final bool remembered;
   final EvaMood mood;
   final bool caret;
+  final List<String> tools;
 
   const MessageBubble({
     super.key,
@@ -28,7 +29,16 @@ class MessageBubble extends StatelessWidget {
     this.remembered = false,
     this.mood = EvaMood.neutral,
     this.caret = false,
+    this.tools = const [],
   });
+
+  /// User-facing tools worth surfacing as a tag → (icon, label). Internal tools
+  /// (memory_insert, conversation_search, …) are intentionally absent, so they
+  /// don't show — memory saves already surface via the "jotted it down" tag.
+  static const Map<String, (IconData, String)> _toolTags = {
+    'searxng_web_search': (Icons.travel_explore, 'searched the web'),
+    'web_url_read': (Icons.link, 'read a page'),
+  };
 
   bool get _isEva => speaker == Speaker.eva;
 
@@ -67,6 +77,9 @@ class MessageBubble extends StatelessWidget {
       crossAxisAlignment: _isEva ? CrossAxisAlignment.start : CrossAxisAlignment.end,
       children: [
         if (remembered && _isEva) _rememberedTag(),
+        if (_isEva)
+          for (final name in tools)
+            if (_toolTags.containsKey(name)) _toolTag(_toolTags[name]!),
         AnimatedContainer(
           duration: EvaMotion.base,
           curve: EvaMotion.easeOut,
@@ -106,6 +119,29 @@ class MessageBubble extends StatelessWidget {
             style: TextStyle(
               fontSize: EvaType.xs,
               color: EvaColors.remembered,
+              fontWeight: EvaWeights.medium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A quiet "she used a tool" tag (e.g. searched the web), styled like the
+  /// remembered tag but in the muted palette so it stays unobtrusive.
+  Widget _toolTag((IconData, String) tag) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(tag.$1, size: 13, color: EvaColors.textMuted),
+          const SizedBox(width: 5),
+          Text(
+            tag.$2,
+            style: const TextStyle(
+              fontSize: EvaType.xs,
+              color: EvaColors.textMuted,
               fontWeight: EvaWeights.medium,
             ),
           ),
