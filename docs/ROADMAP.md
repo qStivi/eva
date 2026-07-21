@@ -1,6 +1,6 @@
 # Eva — roadmap / backlog
 
-Living list of what's next, roughly ordered. Updated 2026-07-04.
+Living list of what's next, roughly ordered. Updated 2026-07-21.
 
 ## Done
 - Character-first **Flutter app** (chat, notebook, "her", settings) — responsive
@@ -9,17 +9,16 @@ Living list of what's next, roughly ordered. Updated 2026-07-04.
 - **Live Letta wiring:** real chat, model switcher, notebook; configurable server.
 - **Web search** for Eva (SearXNG + MCP) — she searches and cites, server-side, so
   it works from the phone too.
-
-## In progress
-- **Markdown rendering** in chat — Eva emits markdown (bold, headings, lists); render
-  it properly, with her `*stage directions*` styled as quiet lavender italics.
-
-## UI polish (small, batched)
-- **"Searched the web" indicator** — surface when Eva used a tool (the app already
-  parses tool names, just doesn't show them).
-- **Bottom-anchor the chat** — messages sit above the composer instead of floating
-  at the top with dead space.
-- **Android launcher icon** from Eva's portrait (currently Flutter's default).
+- **Markdown rendering** in chat *(2026-07-21)* — committed Eva turns render markdown
+  (bold, headings, lists, code), her `*stage directions*` as quiet lavender italics;
+  the live typewriter keeps its plain-text + caret path.
+- **"Searched the web" indicator** *(2026-07-21)* — Eva's turns show a quiet tag when
+  she used a user-facing tool (`searxng_web_search` → "searched the web",
+  `web_url_read` → "read a page"); internal memory/conversation tools stay hidden.
+- **Bottom-anchor the chat** *(2026-07-21)* — messages sit above the composer instead
+  of clinging to the top with dead space below.
+- **Android launcher icon** *(2026-07-21)* — Eva's portrait on the Catppuccin-crust
+  background (legacy + adaptive), replacing Flutter's default mark.
 
 ## Capabilities
 - **Home Assistant integration** *(wanted)* — to-do list + home automation. Almost
