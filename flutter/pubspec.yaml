@@ -37,6 +37,7 @@ dependencies:
   google_fonts: ^8.1.0
   http: ^1.6.0
   shared_preferences: ^2.5.5
+  flutter_markdown_plus: ^1.0.7
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +49,19 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# Launcher icon generation (Android for now) — run `dart run flutter_launcher_icons`
+# after changing the source art. Legacy icon is Eva's portrait full-bleed on the
+# Catppuccin crust; the adaptive icon uses a transparent foreground on the same crust.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  web:
+    generate: false
+  image_path: "assets/icon/eva_icon.png"
+  adaptive_icon_background: "#181926"
+  adaptive_icon_foreground: "assets/icon/eva_icon_fg.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
