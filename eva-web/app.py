@@ -30,6 +30,13 @@ AUTH_USER = os.environ.get("EVA_WEB_USER", "eva")
 AUTH_PASS = os.environ.get("EVA_WEB_PASSWORD", "")
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
+try:
+    # Intent-based toolset pre-loading (see toolset_router.py). Best-effort: if it's
+    # missing or errors, chat still works — Eva just keeps whatever tools she has.
+    from toolset_router import preload_for
+except Exception:  # noqa: BLE001
+    preload_for = None
+
 
 def letta_send(message: str):
     """Send one user turn to Letta; return (reply_text, [tool_names])."""
@@ -128,6 +135,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"error": "bad request"})
         if not message:
             return self._json(400, {"error": "empty message"})
+        if preload_for is not None and AGENT_ID:
+            try:
+                preload_for(message, AGENT_ID, LETTA_HOST)  # pre-attach relevant toolsets
+            except Exception:  # noqa: BLE001 — best-effort; never block the chat
+                pass
         try:
             reply, tools = letta_send(message)
             return self._json(200, {"reply": reply, "tools": tools})

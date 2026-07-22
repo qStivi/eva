@@ -24,6 +24,13 @@ Living list of what's next, roughly ordered. Updated 2026-07-21.
   **Model Context Protocol Server** (SSE), registered in Letta like the SearXNG MCP.
   `scripts/register-ha-mcp.sh` + a persona directive ("the house, and your list").
   Token in chmod-600 `~/.config/letta/ha.env`. Verified: reads + writes the list live.
+- **Lazy toolset loading** *(2026-07-21)* — Letta eager-loads every attached tool each
+  turn (slow + worse tool-picking), so Eva keeps a lean **core** (~11) and domain tools
+  live in groups (`home`, `media`, `house_extras`) in `toolsets.json`. Because Letta only
+  surfaces newly-attached tools *next* turn, `eva-web/toolset_router.py` pre-attaches the
+  right group from the message (keyword intent) in eva-web + the `eva` CLI, so tools are
+  present from turn start. `scripts/register-toolsets.sh` applies the scheme;
+  `tools/use_toolset.py` is a model-facing fallback. Verified: one-turn house reads.
 
 ## Capabilities
 - **More MCP tools** as needs arise (the SearXNG pattern is repeatable).
