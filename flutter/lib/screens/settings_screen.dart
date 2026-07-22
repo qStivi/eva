@@ -18,15 +18,28 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _modelOpen = false;
+  bool _accessOpen = false;
   late final TextEditingController _name = TextEditingController(text: widget.controller.userName);
   late final TextEditingController _server = TextEditingController(text: widget.controller.serverUrl);
+  late final TextEditingController _accessId =
+      TextEditingController(text: widget.controller.accessClientId);
+  late final TextEditingController _accessSecret =
+      TextEditingController(text: widget.controller.accessClientSecret);
 
   EvaController get c => widget.controller;
+
+  void _reconnect() => c.reconfigure(
+        _server.text,
+        accessClientId: _accessId.text,
+        accessClientSecret: _accessSecret.text,
+      );
 
   @override
   void dispose() {
     _name.dispose();
     _server.dispose();
+    _accessId.dispose();
+    _accessSecret.dispose();
     super.dispose();
   }
 
@@ -128,17 +141,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
           autocorrect: false,
           decoration: const InputDecoration(
             labelText: 'Eva server',
-            hintText: 'http://localhost:8283  ·  phone: http://<PC-LAN-IP>:8283',
+            hintText: 'https://eva.qstivi.com  ·  LAN: http://<PC-IP>:8283',
           ),
-          onSubmitted: (v) => c.reconfigure(v),
+          onSubmitted: (_) => _reconnect(),
         ),
+        // Cloudflare Access token — only needed for the public tunnel. Tucked away
+        // so LAN users never see it.
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => setState(() => _accessOpen = !_accessOpen),
+            icon: Icon(_accessOpen ? Icons.expand_less : Icons.expand_more, size: 18),
+            label: Text(
+              'Cloudflare Access (remote)',
+              style: TextStyle(fontSize: EvaType.sm, color: EvaColors.textMuted),
+            ),
+          ),
+        ),
+        if (_accessOpen) ...[
+          TextField(
+            controller: _accessId,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              labelText: 'Access Client ID',
+              hintText: '…….access',
+            ),
+            onSubmitted: (_) => _reconnect(),
+          ),
+          const SizedBox(height: EvaSpace.s2),
+          TextField(
+            controller: _accessSecret,
+            autocorrect: false,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Access Client Secret'),
+            onSubmitted: (_) => _reconnect(),
+          ),
+        ],
         const SizedBox(height: EvaSpace.s2),
         Align(
           alignment: Alignment.centerRight,
           child: ElevatedButton.icon(
-            onPressed: c.status == ConnectionStatus.connecting
-                ? null
-                : () => c.reconfigure(_server.text),
+            onPressed: c.status == ConnectionStatus.connecting ? null : _reconnect,
             icon: const Icon(Icons.sync, size: 16),
             label: Text(c.status == ConnectionStatus.live ? 'Reconnect' : 'Connect'),
           ),

@@ -44,20 +44,29 @@ class Passage {
 
 class LettaApi {
   final String baseUrl;
+
+  /// Extra headers attached to every request (e.g. Cloudflare Access service-token
+  /// pair when reaching Letta over a public tunnel). Empty for LAN/tailnet.
+  final Map<String, String> authHeaders;
   final http.Client _client;
 
-  LettaApi(String baseUrl, {http.Client? client})
+  LettaApi(String baseUrl, {http.Client? client, Map<String, String>? authHeaders})
       : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
+        authHeaders = authHeaders ?? const {},
         _client = client ?? http.Client();
 
   Uri _u(String path) => Uri.parse('$baseUrl$path');
-  static const _json = {'Content-Type': 'application/json'};
+  static const _jsonType = {'Content-Type': 'application/json'};
+  // Headers for reads (auth only) and writes (auth + JSON content-type).
+  Map<String, String> get _read => authHeaders;
+  Map<String, String> get _json => {..._jsonType, ...authHeaders};
   static const _quick = Duration(seconds: 8);
   static const _slow = Duration(seconds: 300); // local models can be slow
 
   Future<bool> health() async {
     try {
-      final r = await _client.get(_u('/v1/health/')).timeout(const Duration(seconds: 6));
+      final r =
+          await _client.get(_u('/v1/health/'), headers: _read).timeout(const Duration(seconds: 6));
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -65,7 +74,7 @@ class LettaApi {
   }
 
   Future<List<AgentSummary>> agents() async {
-    final r = await _client.get(_u('/v1/agents/')).timeout(_quick);
+    final r = await _client.get(_u('/v1/agents/'), headers: _read).timeout(_quick);
     _ensureOk(r.statusCode, r.body);
     final list = jsonDecode(r.body) as List;
     return [
@@ -125,7 +134,7 @@ class LettaApi {
 
   /// Non-embedding model handles available to switch to.
   Future<List<String>> modelHandles() async {
-    final r = await _client.get(_u('/v1/models/')).timeout(_quick);
+    final r = await _client.get(_u('/v1/models/'), headers: _read).timeout(_quick);
     _ensureOk(r.statusCode, r.body);
     final list = jsonDecode(r.body) as List;
     return [
@@ -143,7 +152,8 @@ class LettaApi {
   }
 
   Future<List<MemoryBlock>> blocks(String agentId) async {
-    final r = await _client.get(_u('/v1/agents/$agentId/core-memory/blocks')).timeout(_quick);
+    final r =
+        await _client.get(_u('/v1/agents/$agentId/core-memory/blocks'), headers: _read).timeout(_quick);
     _ensureOk(r.statusCode, r.body);
     final list = jsonDecode(r.body) as List;
     return [
@@ -161,8 +171,9 @@ class LettaApi {
   }
 
   Future<List<Passage>> archival(String agentId) async {
-    final r =
-        await _client.get(_u('/v1/agents/$agentId/archival-memory?limit=100')).timeout(_quick);
+    final r = await _client
+        .get(_u('/v1/agents/$agentId/archival-memory?limit=100'), headers: _read)
+        .timeout(_quick);
     _ensureOk(r.statusCode, r.body);
     final decoded = jsonDecode(r.body);
     final List list = decoded is List ? decoded : (decoded['passages'] as List? ?? const []);
@@ -174,8 +185,9 @@ class LettaApi {
   }
 
   Future<void> deleteArchival(String agentId, String passageId) async {
-    final r =
-        await _client.delete(_u('/v1/agents/$agentId/archival-memory/$passageId')).timeout(_quick);
+    final r = await _client
+        .delete(_u('/v1/agents/$agentId/archival-memory/$passageId'), headers: _read)
+        .timeout(_quick);
     _ensureOk(r.statusCode, r.body);
   }
 

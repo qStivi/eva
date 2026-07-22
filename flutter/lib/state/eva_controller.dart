@@ -52,6 +52,8 @@ class EvaController extends ChangeNotifier {
 
   bool get live => status == ConnectionStatus.live && _api != null && _agentId != null;
   String get serverUrl => _settings?.serverUrl ?? kDefaultServerUrl;
+  String get accessClientId => _settings?.accessClientId ?? '';
+  String get accessClientSecret => _settings?.accessClientSecret ?? '';
   String get agentName => _agentName;
 
   final StreamController<String> _toasts = StreamController<String>.broadcast();
@@ -138,16 +140,19 @@ class EvaController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Point at a different server URL (Settings) and reconnect.
-  Future<void> reconfigure(String url) async {
+  /// Point at a different server URL (Settings) and reconnect. Optionally updates
+  /// the Cloudflare Access service-token pair used for public-tunnel access.
+  Future<void> reconfigure(String url, {String? accessClientId, String? accessClientSecret}) async {
     final settings = _settings;
     if (settings == null) return; // mock-only build
     settings.serverUrl = url.trim();
+    if (accessClientId != null) settings.accessClientId = accessClientId.trim();
+    if (accessClientSecret != null) settings.accessClientSecret = accessClientSecret.trim();
     settings.agentId = null;
     _agentId = null;
     await settings.save();
     _api?.close();
-    _api = LettaApi(settings.serverUrl);
+    _api = LettaApi(settings.serverUrl, authHeaders: settings.accessHeaders);
     await connect();
   }
 

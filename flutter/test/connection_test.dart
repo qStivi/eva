@@ -140,6 +140,40 @@ void main() {
     });
   });
 
+  group('cloudflare access headers', () {
+    test('authHeaders are sent on both reads and writes', () async {
+      final seen = <String, Map<String, String>>{};
+      final api = LettaApi(
+        'https://eva.qstivi.com',
+        authHeaders: const {
+          'CF-Access-Client-Id': 'id.access',
+          'CF-Access-Client-Secret': 'secret',
+        },
+        client: MockClient((req) async {
+          seen[req.url.path] = req.headers;
+          if (req.url.path == '/v1/agents/') {
+            return http.Response(
+                jsonEncode([
+                  {'id': _agentId, 'name': 'eva', 'llm_config': {'handle': 'h'}}
+                ]),
+                200);
+          }
+          return http.Response('{}', 200);
+        }),
+      );
+
+      await api.agents(); // a read
+      await api.sendMessage(_agentId, 'hi'); // a write
+
+      for (final path in ['/v1/agents/', '/v1/agents/$_agentId/messages']) {
+        expect(seen[path]?['cf-access-client-id'], 'id.access', reason: path);
+        expect(seen[path]?['cf-access-client-secret'], 'secret', reason: path);
+      }
+      // writes still carry JSON content-type alongside the auth headers
+      expect(seen['/v1/agents/$_agentId/messages']?['content-type'], contains('application/json'));
+    });
+  });
+
   group('recovery', () {
     test('connect again after the server comes back -> live', () async {
       final fake = FakeLetta(up: false);
