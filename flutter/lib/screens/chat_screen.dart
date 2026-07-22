@@ -57,17 +57,19 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (widget.showHeader) _header(),
-        Expanded(
-          child: ListenableBuilder(
-            listenable: c,
-            builder: (context, _) => _messageList(),
-          ),
-        ),
-        Composer(controller: c.draft, onSend: c.send, busy: c.busy, onCancel: c.cancelThinking),
-      ],
+    // Wrap the WHOLE screen (not just the message list) so the Composer rebuilds
+    // on every controller change too — otherwise its `busy` stays stale and the
+    // send button gets stuck on the spinner until an unrelated relayout (e.g.
+    // dismissing the keyboard) forces a full rebuild.
+    return ListenableBuilder(
+      listenable: c,
+      builder: (context, _) => Column(
+        children: [
+          if (widget.showHeader) _header(),
+          Expanded(child: _messageList()),
+          Composer(controller: c.draft, onSend: c.send, busy: c.busy, onCancel: c.cancelThinking),
+        ],
+      ),
     );
   }
 
