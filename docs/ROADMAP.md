@@ -44,14 +44,19 @@ Living list of what's next, roughly ordered. Updated 2026-07-21.
 - ~~Journal / Logseq tool~~ — **dropped**: the backend (memory + tools) covers this.
 
 ## The big arc — "Eva with hands, working in the background"
-- **Eva delegates to Claude Code** — instead of raw bash (scary), an MCP tool that
-  hands a task to `claude -p "<task>"` and returns the result. Powerful executor with
-  its own guardrails. Needs **human-in-the-loop approval**.
-- **Sub-agents / background tasks + check-ins** — Eva kicks off work, you keep
-  chatting, she reports back or **notifies** you (needs async execution + a push
-  channel to the app — the reason native mobile matters).
-- **Sleep-time memory consolidation** (Letta `enable_sleeptime`) — a background brain
-  that tidies memory; A/B a faithful model vs. a lean one.
+**Planned 2026-07-22 → [2026-07-22-EVA-WITH-HANDS-PLAN.md](2026-07-22-EVA-WITH-HANDS-PLAN.md).**
+Decisions locked: push via **self-hosted ntfy**; delegated `claude -p` runs **on the
+host**, gated by **human-in-the-loop approval** (not a sandbox). Build order:
 
-> These three converge on the same infrastructure (async execution + notifications +
-> HITL), so they deserve a dedicated planning session before building.
+- **Phase 0 — sleep-time memory consolidation** (Letta `enable_sleeptime`, 30B-Thinking
+  in the background) — self-contained, fixes the known perspective/embellishment drift.
+- **Phase 1 — the spine**: `eva-task-runner` (async job store + loopback API) + ntfy,
+  proven on a safe toy job (result injected back into Eva's conversation → push → app).
+- **Phase 2 — `delegate_to_claude` + HITL**: host `claude -p` executor behind an
+  approval gate; new `work` toolset + persona directive.
+- **Phase 3 — polish**: first-class Flutter approval/notification cards, generic
+  `spawn_task`, queueing, trust allowlists; also fixes the app's eva-web-router bypass.
+
+> The delegation + background-tasks features share one spine (async runner +
+> conversation re-injection + ntfy + HITL); sleeptime rides alongside it. Full component
+> design, sequencing, open questions, and security posture are in the plan doc above.
