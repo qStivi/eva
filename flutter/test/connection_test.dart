@@ -4,6 +4,7 @@
 // app degrades and recovers without a real server. These document the current
 // behaviour (including its reliability gaps) and guard against regressions.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:eva/api/letta_api.dart';
@@ -71,7 +72,9 @@ class FakeLetta {
 EvaController controllerFor(FakeLetta fake) {
   final settings = EvaSettings(serverUrl: 'http://test.local:8283', agentId: _agentId);
   final api = LettaApi(settings.serverUrl, client: fake.client());
-  return EvaController(api: api, settings: settings);
+  final c = EvaController(api: api, settings: settings);
+  addTearDown(c.dispose); // cancels the health heartbeat timer
+  return c;
 }
 
 void main() {
@@ -137,6 +140,58 @@ void main() {
       // Reliability gap: status stays `live` even though the send failed — the
       // app has no heartbeat, so it only "notices" a drop on the next send.
       expect(c.status, ConnectionStatus.live);
+    });
+  });
+
+  group('stuck-thinking guard', () {
+    test('cancelThinking frees the composer and drops a late reply', () async {
+      final gate = Completer<http.Response>();
+      final settings = EvaSettings(serverUrl: 'http://t.local:8283', agentId: _agentId);
+      final api = LettaApi(
+        settings.serverUrl,
+        client: MockClient((req) async {
+          final p = req.url.path;
+          if (p == '/v1/health/') return http.Response('{"status":"ok"}', 200);
+          if (p == '/v1/agents/') {
+            return http.Response(
+                jsonEncode([
+                  {'id': _agentId, 'name': 'eva', 'llm_config': {'handle': 'h'}}
+                ]),
+                200);
+          }
+          if (p.endsWith('/core-memory/blocks')) {
+            return http.Response(jsonEncode([{'label': 'human', 'value': 'x'}]), 200);
+          }
+          if (p.contains('/archival-memory')) return http.Response('[]', 200);
+          if (p.endsWith('/messages')) return gate.future; // hangs until we release it
+          return http.Response('{}', 200);
+        }),
+      );
+      final c = EvaController(api: api, settings: settings);
+      addTearDown(c.dispose);
+      await c.connect();
+
+      c.draft.text = 'you there?';
+      c.send();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(c.busy, isTrue); // stuck waiting on the hung reply
+
+      c.cancelThinking();
+      expect(c.busy, isFalse); // composer freed immediately — the actual bug fix
+
+      // The hung reply lands late; the turn guard must drop it (no re-block, no
+      // stray Eva message from the abandoned turn).
+      final evaBefore = c.messages.where((m) => m.from == Speaker.eva).length;
+      gate.complete(http.Response(
+          jsonEncode({
+            'messages': [
+              {'message_type': 'assistant_message', 'content': 'too late'}
+            ]
+          }),
+          200));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(c.busy, isFalse);
+      expect(c.messages.where((m) => m.from == Speaker.eva).length, evaBefore);
     });
   });
 

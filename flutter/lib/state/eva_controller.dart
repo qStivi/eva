@@ -63,6 +63,13 @@ class EvaController extends ChangeNotifier {
   final Random _rng = Random();
   int _replyIdx = 0;
 
+  // Monotonic turn id: every send/cancel bumps it, so a slow or abandoned reply
+  // that lands late can be dropped instead of re-freezing the UI in "thinking".
+  int _turn = 0;
+  // Health heartbeat: keeps `status` honest while idle and auto-recovers.
+  Timer? _heartbeat;
+  int _missedPulses = 0;
+
   EvaController({LettaApi? api, EvaSettings? settings}) {
     _api = api;
     _settings = settings;
@@ -73,6 +80,7 @@ class EvaController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _heartbeat?.cancel();
     for (final t in _timers) {
       t.cancel();
     }
@@ -80,6 +88,54 @@ class EvaController extends ChangeNotifier {
     _toasts.close();
     _api?.close();
     super.dispose();
+  }
+
+  /// Stop waiting on the current turn and return to idle. Always safe to call —
+  /// this is the escape hatch when a reply is slow or the connection stalled, so
+  /// the composer never stays stuck in "thinking". Any reply still in flight is
+  /// dropped via the turn guard.
+  void cancelThinking() {
+    _turn++;
+    for (final t in _timers) {
+      t.cancel();
+    }
+    _timers.clear();
+    thinking = false;
+    typingText = null;
+    evaMood = EvaMood.neutral;
+    notifyListeners();
+  }
+
+  // ---- health heartbeat ----------------------------------------------------
+
+  void _startHeartbeat() {
+    _heartbeat?.cancel();
+    _missedPulses = 0;
+    _heartbeat = Timer.periodic(const Duration(seconds: 20), (_) => _pulse());
+  }
+
+  /// Probe the server while idle so the connection dot reflects reality and a
+  /// dropped link auto-recovers without a manual reconnect. Skips while busy so
+  /// it never interferes with an in-flight turn; only flips to "error" after two
+  /// consecutive misses so a single slow probe doesn't cause flapping.
+  Future<void> _pulse() async {
+    final api = _api;
+    if (api == null || busy || status == ConnectionStatus.connecting) return;
+    final ok = await api.health();
+    if (ok) {
+      _missedPulses = 0;
+      if (status == ConnectionStatus.error && _agentId != null) {
+        status = ConnectionStatus.live;
+        serverError = null;
+        notifyListeners();
+      }
+    } else if (status == ConnectionStatus.live) {
+      if (++_missedPulses >= 2) {
+        status = ConnectionStatus.error;
+        serverError = 'connection lost';
+        notifyListeners();
+      }
+    }
   }
 
   void _emitToast(String text) {
@@ -137,6 +193,7 @@ class EvaController extends ChangeNotifier {
       status = ConnectionStatus.error;
       serverError = e is LettaException ? e.message : e.toString();
     }
+    _startHeartbeat(); // keep status honest + auto-recover from here on
     notifyListeners();
   }
 
@@ -320,29 +377,34 @@ class EvaController extends ChangeNotifier {
     draft.clear();
     thinking = true;
     evaMood = EvaMood.thinking;
+    final myTurn = ++_turn;
     notifyListeners();
     if (live) {
-      unawaited(_sendLive(text));
+      unawaited(_sendLive(text, myTurn));
     } else {
       final reply = cannedReplies[_replyIdx % cannedReplies.length];
       _replyIdx++;
       _timers.add(Timer(
         Duration(milliseconds: 850 + _rng.nextInt(500)),
-        () => _typewriteMock(text, reply),
+        () {
+          if (myTurn == _turn) _typewriteMock(text, reply);
+        },
       ));
     }
   }
 
-  Future<void> _sendLive(String userText) async {
+  Future<void> _sendLive(String userText, int myTurn) async {
     final before = memories.length;
     try {
       final reply = await _api!.sendMessage(_agentId!, userText);
+      if (myTurn != _turn) return; // cancelled or superseded — drop the stale reply
       _runTypewriter(reply.text, EvaMood.neutral, false, () async {
         await _loadMemory();
         if (memories.length > before) _emitToast(rememberedToast);
       }, tools: reply.tools);
       return;
     } catch (e) {
+      if (myTurn != _turn) return; // cancelled — the user already moved on
       thinking = false;
       evaMood = EvaMood.neutral;
       messages.add(ChatMessage(

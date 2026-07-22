@@ -66,7 +66,7 @@ class _ChatScreenState extends State<ChatScreen> {
             builder: (context, _) => _messageList(),
           ),
         ),
-        Composer(controller: c.draft, onSend: c.send, busy: c.busy),
+        Composer(controller: c.draft, onSend: c.send, busy: c.busy, onCancel: c.cancelThinking),
       ],
     );
   }
