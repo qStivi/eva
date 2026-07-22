@@ -121,8 +121,13 @@ sandbox reaches Letta over HTTP, not the Cloud `client` object.)
 ### 3. Re-injecting results into the conversation
 
 When a job finishes, the runner does `POST /v1/agents/<eva-id>/messages` with a
-**system/user message** describing the outcome ("The task you delegated — '…' —
-finished. Result: …"). Letta processes it as a normal turn: Eva reads it, reacts **in
+message describing the outcome ("The task you delegated — '…' — finished. Result: …").
+Use the **`system` role**, not `user`: this is an *event* the runner is reporting, not
+something you said, so it must not be attributed to you in the transcript or mislead her
+memory about who told her. (Verify Letta 0.16.8's exact handling of `system`-role
+messages during Phase 1 — that it's delivered as an event the agent reacts to and turns
+into a normal reply; fall back to a clearly-prefixed `user` event only if `system`
+doesn't behave.) Letta then processes it as a normal turn: Eva reads it, reacts **in
 character**, maybe scribbles a memory, and produces a reply. That reply lands in
 Letta's message history like any other turn.
 
@@ -134,8 +139,13 @@ a light poll) and the new turn appears.
 ### 4. `ntfy` (self-hosted push)
 
 - New rootless Quadlet unit `~/.config/containers/systemd/ntfy.container`, bound to
-  the LAN (or loopback + reverse-proxy, matching the HA pattern), one **topic** for
-  Eva (unguessable name = the access control, plus optional token).
+  the LAN (or loopback + reverse-proxy, matching the HA pattern), one **topic** for Eva.
+- **Real auth, not an obscure topic name.** A topic name is at best a shared secret, so
+  it's defense-in-depth only — the actual control is ntfy's **access-control (users +
+  tokens / ACL)** with the topic locked down (a required publish token for the runner, a
+  required subscribe token for the app), and **TLS** whenever it's reachable beyond
+  loopback (i.e. via the reverse proxy, same as HA). Tokens live in a chmod-600 env file
+  (`~/.config/eva/ntfy.env`), never in the repo — matching the `ha.env` pattern.
 - Runner publishes on job completion / check-in: title = Eva's voice, body = short
   summary, with a tap-action deep-link into the app.
 - **Flutter** subscribes: the `ntfy` app can forward to the phone with zero code, but

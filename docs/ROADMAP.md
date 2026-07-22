@@ -48,7 +48,7 @@ Living list of what's next, roughly ordered. Updated 2026-07-21.
 Decisions locked: push via **self-hosted ntfy**; delegated `claude -p` runs **on the
 host**, gated by **human-in-the-loop approval** (not a sandbox). Build order:
 
-- **Phase 0 — sleep-time memory consolidation** (Letta `enable_sleeptime`, 30B-Thinking
+- **Phase 0 — sleep-time memory consolidation** (Letta `enable_sleeptime`, 30B-A3B-Thinking
   in the background) — self-contained, fixes the known perspective/embellishment drift.
 - **Phase 1 — the spine**: `eva-task-runner` (async job store + loopback API) + ntfy,
   proven on a safe toy job (result injected back into Eva's conversation → push → app).
