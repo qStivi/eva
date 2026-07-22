@@ -70,16 +70,24 @@ existing rows), but re-verify after any Letta restart/upgrade.
   customization lever — its base system prompt is the generic "Letta-Sleeptime-Memory"
   organizer; `memory_persona` is where Eva-specific hygiene rules go.
 
-## Model choice: instruct over thinking
+## Model choice
 
-Chosen: **`qwen3-30b-a3b-instruct-2507@q4_k_m`**, `enable_reasoner=false`.
+**Shipped on Eva: `gpt-oss-20b`** (the sleeptime agent inherits the main agent's model, so
+this is automatic and free). Reason: on 16 GB VRAM, a *different* consolidator model can't stay
+resident alongside Eva's chat model, so LM Studio would **swap** models around every 5th turn
+(~30–60 s lag on that reply). Reusing Eva's own `gpt-oss-20b` means **zero swapping** — chat
+stays snappy and consolidation piggybacks on the already-loaded model. Since we deliberately
+accepted incremental hygiene, this is the right trade for shipping now.
 
-- **`…-thinking`** (reasoner on) was **rejected**: ~3 min/run (18 GB model CPU-offloaded on
-  16 GB VRAM) and it burns its budget on `<think>`, tool-calling poorly through Letta —
-  produced a shallow, non-persisting edit.
-- **`…-instruct`** runs a cycle in **~40–56 s** and tool-calls cleanly.
+**Higher-quality option (deferred to better hardware / cloud):** `qwen3-30b-a3b-instruct-2507@q4_k_m`
+with `enable_reasoner=false` — better per-cycle hygiene, ~40–56 s/run, but forces the VRAM swap
+on this box. It's what the **`eva-spike`** testbed uses.
+
+- **`…-thinking`** (reasoner on) was **rejected**: ~3 min/run (CPU-offloaded on 16 GB) and it
+  burns its budget on `<think>`, tool-calling poorly through Letta — shallow, non-persisting edit.
 - Both 30B variants (unlike qwen2.5-7b) correctly **leave the `persona` block alone** ✓.
   qwen2.5-7b was disqualified: it rewrote Eva's `persona` and its own instructions.
+- `gpt-oss-20b` inherits `enable_reasoner=true` from Eva; it tool-calls cleanly for memory edits.
 
 ## Quality (the real limitation)
 
@@ -110,9 +118,23 @@ gap (a decision, not yet done):
   lmstudio client doesn't send it (the same reason Eva uses the `openai`-base proxy). The
   base `openai` provider is the only working auth path.
 
-## State left behind
+## Shipped state (2026-07-22)
 
-- `eva-spike`: sleeptime **enabled**, consolidator = instruct model, `freq=5`. Testbed only.
-- `eva`: **untouched** (no sleeptime).
-- Backups before the DB edit: image `letta-rollback:0.16.8`, `pg_dump` at
-  `~/letta-backups/letta-20260722-182211.dump`.
+Phase 0 is **live on the real Eva**, in its accepted-incremental form:
+
+- `eva` (`gpt-oss-20b`): `enable_sleeptime=true`. Consolidator `eva-sleeptime` runs
+  **`gpt-oss-20b`** (inherited, no VRAM swap), shares Eva's `human`/`persona` blocks, hygiene
+  instructions in its `memory_persona`, `freq=5`. Verified: Eva still chats normally in-character.
+- `eva-spike` + `eva-spike-sleeptime` (`qwen3-30b-a3b-instruct`): kept as the higher-quality
+  testbed.
+- **Backups:** image `letta-rollback:0.16.8`; DB `pg_dump` at
+  `~/letta-backups/letta-20260722-182211.dump`; Eva's pre-enable memory blocks at
+  `~/letta-backups/eva-blocks-20260722-185915.json`.
+- **To roll back on Eva:** `PATCH /v1/agents/{eva}` `{"enable_sleeptime": false}` and, if needed,
+  restore the `human` block from the blocks backup.
+
+## Next (deferred)
+- **Raise quality** when hardware allows or via **cloud escalation** (roadmap item): swap the
+  consolidator to `qwen3-30b-a3b-instruct` (needs the VRAM headroom) or a cloud flagship.
+- **Archival routing** — attach `archival_memory_insert` to the sleeptime agent to move
+  dated/episodic facts to (timestamped) archival, keeping core for stable facts.
