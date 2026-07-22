@@ -107,11 +107,40 @@ class _AppShellState extends State<AppShell> {
                   ],
                 ),
               ),
+              _modelChip(),
               StatusDot(thinking: c.thinking),
             ],
           ),
         );
       },
+    );
+  }
+
+  /// Tiny "model warm / cold" pill — whether LM Studio has Eva's model loaded, so
+  /// you know if the next message is instant or pays a cold load. Hidden unless
+  /// live and the status bridge answered.
+  Widget _modelChip() {
+    if (c.status != ConnectionStatus.live || c.modelLoad == ModelLoad.unknown) {
+      return const SizedBox.shrink();
+    }
+    final loaded = c.modelLoad == ModelLoad.loaded;
+    final color = loaded ? EvaColors.remembered : EvaColors.textMuted;
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: EvaColors.surfaceInset,
+        borderRadius: BorderRadius.circular(EvaRadii.sm),
+        border: Border.all(color: EvaColors.surfaceLine),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(loaded ? Icons.bolt : Icons.ac_unit, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(loaded ? 'warm' : 'cold', style: TextStyle(fontSize: 10.5, color: color)),
+        ],
+      ),
     );
   }
 

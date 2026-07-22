@@ -184,6 +184,22 @@ class LettaApi {
     ];
   }
 
+  /// Model ids LM Studio currently has loaded, via the tunnel's /lmstudio/status
+  /// bridge. Returns null when the bridge isn't reachable (e.g. LAN without it,
+  /// or the server is down) so the UI can distinguish "cold" from "unknown".
+  Future<Set<String>?> loadedModels() async {
+    try {
+      final r = await _client.get(_u('/lmstudio/status'), headers: _read).timeout(_quick);
+      if (r.statusCode != 200) return null;
+      final d = jsonDecode(r.body);
+      if (d is! Map || d['ok'] != true) return null;
+      final loaded = (d['loaded'] as List?) ?? const [];
+      return {for (final e in loaded) e.toString()};
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> deleteArchival(String agentId, String passageId) async {
     final r = await _client
         .delete(_u('/v1/agents/$agentId/archival-memory/$passageId'), headers: _read)

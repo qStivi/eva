@@ -22,6 +22,7 @@ const _agentId = 'agent-eva-1';
 class FakeLetta {
   bool up;
   int messageCalls = 0;
+  List<String> loadedIds = const []; // what /lmstudio/status reports as loaded
   FakeLetta({this.up = true});
 
   http.Client client() => MockClient((req) async {
@@ -32,6 +33,9 @@ class FakeLetta {
         final path = req.url.path;
         if (path == '/v1/health/') {
           return http.Response('{"status":"ok"}', 200);
+        }
+        if (path == '/lmstudio/status') {
+          return http.Response(jsonEncode({'ok': true, 'loaded': loadedIds}), 200);
         }
         if (path == '/v1/agents/' && req.method == 'GET') {
           return http.Response(
@@ -140,6 +144,24 @@ void main() {
       // Reliability gap: status stays `live` even though the send failed — the
       // app has no heartbeat, so it only "notices" a drop on the next send.
       expect(c.status, ConnectionStatus.live);
+    });
+  });
+
+  group('model-load status', () {
+    test('warm when Eva\'s model is in the loaded set', () async {
+      final fake = FakeLetta(up: true)..loadedIds = ['openai/gpt-oss-20b'];
+      final c = controllerFor(fake);
+      await c.connect();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(c.modelLoad, ModelLoad.loaded);
+    });
+
+    test('cold when the model is not loaded', () async {
+      final fake = FakeLetta(up: true)..loadedIds = ['something/else'];
+      final c = controllerFor(fake);
+      await c.connect();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(c.modelLoad, ModelLoad.cold);
     });
   });
 

@@ -19,6 +19,10 @@ import '../data/mock_chat.dart';
 
 enum ConnectionStatus { mock, connecting, live, error }
 
+/// Whether LM Studio currently has Eva's model loaded (warm), not (cold — the
+/// next message will pay a load), or we can't tell (bridge unreachable/offline).
+enum ModelLoad { unknown, loaded, cold }
+
 /// Curated daily-driver id -> Letta model handle.
 const Map<String, String> _handleById = {
   'gpt-oss-20b': 'openai-proxy/openai/gpt-oss-20b',
@@ -49,6 +53,7 @@ class EvaController extends ChangeNotifier {
   String _agentName = 'eva';
   ConnectionStatus status = ConnectionStatus.mock;
   String? serverError;
+  ModelLoad modelLoad = ModelLoad.unknown;
 
   bool get live => status == ConnectionStatus.live && _api != null && _agentId != null;
   String get serverUrl => _settings?.serverUrl ?? kDefaultServerUrl;
@@ -69,6 +74,7 @@ class EvaController extends ChangeNotifier {
   // Health heartbeat: keeps `status` honest while idle and auto-recovers.
   Timer? _heartbeat;
   int _missedPulses = 0;
+  bool _disposed = false;
 
   EvaController({LettaApi? api, EvaSettings? settings}) {
     _api = api;
@@ -80,6 +86,7 @@ class EvaController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _heartbeat?.cancel();
     for (final t in _timers) {
       t.cancel();
@@ -122,6 +129,7 @@ class EvaController extends ChangeNotifier {
     final api = _api;
     if (api == null || busy || status == ConnectionStatus.connecting) return;
     final ok = await api.health();
+    if (_disposed) return;
     if (ok) {
       _missedPulses = 0;
       if (status == ConnectionStatus.error && _agentId != null) {
@@ -135,6 +143,34 @@ class EvaController extends ChangeNotifier {
         serverError = 'connection lost';
         notifyListeners();
       }
+    }
+    await _pollModelLoad();
+  }
+
+  /// Eva's model as LM Studio names it: the Letta handle minus its provider
+  /// prefix (openai-proxy/openai/gpt-oss-20b -> openai/gpt-oss-20b).
+  String? get _loadedTargetId {
+    final handle = _handleById[model.id] ?? model.id;
+    final slash = handle.indexOf('/');
+    return slash < 0 ? handle : handle.substring(slash + 1);
+  }
+
+  /// Refresh whether LM Studio has Eva's model warm (via the /lmstudio/status
+  /// bridge). Best-effort; unreachable bridge => unknown.
+  Future<void> _pollModelLoad() async {
+    final api = _api;
+    if (api == null || status != ConnectionStatus.live) return;
+    final loaded = await api.loadedModels();
+    if (_disposed) return;
+    final target = _loadedTargetId;
+    final next = loaded == null
+        ? ModelLoad.unknown
+        : (target != null && loaded.contains(target))
+            ? ModelLoad.loaded
+            : ModelLoad.cold;
+    if (next != modelLoad) {
+      modelLoad = next;
+      notifyListeners();
     }
   }
 
@@ -194,6 +230,7 @@ class EvaController extends ChangeNotifier {
       serverError = e is LettaException ? e.message : e.toString();
     }
     _startHeartbeat(); // keep status honest + auto-recover from here on
+    unawaited(_pollModelLoad());
     notifyListeners();
   }
 
@@ -250,12 +287,14 @@ class EvaController extends ChangeNotifier {
   Future<void> selectModel(EvaModel m) async {
     final previous = model;
     model = m;
+    modelLoad = ModelLoad.unknown; // new model — recheck whether it's warm
     notifyListeners();
     if (live) {
       final handle = _handleById[m.id] ?? m.id;
       try {
         await _api!.setModel(_agentId!, handle);
         _emitToast('*shrugs* New brain. Same me. We’ll see how it goes.');
+        unawaited(_pollModelLoad());
       } catch (e) {
         model = previous;
         _emitToast("Couldn't switch brains — ${_short(e)}");
@@ -397,14 +436,15 @@ class EvaController extends ChangeNotifier {
     final before = memories.length;
     try {
       final reply = await _api!.sendMessage(_agentId!, userText);
-      if (myTurn != _turn) return; // cancelled or superseded — drop the stale reply
+      if (_disposed || myTurn != _turn) return; // disposed, cancelled, or superseded
       _runTypewriter(reply.text, EvaMood.neutral, false, () async {
         await _loadMemory();
         if (memories.length > before) _emitToast(rememberedToast);
+        unawaited(_pollModelLoad()); // the model just ran — should read as loaded now
       }, tools: reply.tools);
       return;
     } catch (e) {
-      if (myTurn != _turn) return; // cancelled — the user already moved on
+      if (_disposed || myTurn != _turn) return; // cancelled/disposed — user moved on
       thinking = false;
       evaMood = EvaMood.neutral;
       messages.add(ChatMessage(
