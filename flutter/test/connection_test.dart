@@ -1,0 +1,179 @@
+// Connection & disconnection behaviour of EvaController against a simulated
+// Letta backend. Uses http's MockClient (injected into LettaApi) to flip the
+// "server" between reachable / unreachable / recovered, so we can assert how the
+// app degrades and recovers without a real server. These document the current
+// behaviour (including its reliability gaps) and guard against regressions.
+
+import 'dart:convert';
+
+import 'package:eva/api/letta_api.dart';
+import 'package:eva/config/eva_settings.dart';
+import 'package:eva/data/mock_chat.dart';
+import 'package:eva/state/eva_controller.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+const _agentId = 'agent-eva-1';
+
+/// A mock Letta whose reachability we can toggle at runtime.
+class FakeLetta {
+  bool up;
+  int messageCalls = 0;
+  FakeLetta({this.up = true});
+
+  http.Client client() => MockClient((req) async {
+        if (!up) {
+          // Simulate a refused/closed connection (what http throws on failure).
+          throw http.ClientException('Connection refused', req.url);
+        }
+        final path = req.url.path;
+        if (path == '/v1/health/') {
+          return http.Response('{"status":"ok"}', 200);
+        }
+        if (path == '/v1/agents/' && req.method == 'GET') {
+          return http.Response(
+              jsonEncode([
+                {
+                  'id': _agentId,
+                  'name': 'eva',
+                  'llm_config': {'handle': 'openai-proxy/openai/gpt-oss-20b'},
+                }
+              ]),
+              200);
+        }
+        if (path.endsWith('/core-memory/blocks')) {
+          return http.Response(
+              jsonEncode([
+                {'label': 'human', 'value': 'Stephan likes strong coffee.'},
+                {'label': 'persona', 'value': 'I am Eva.'},
+              ]),
+              200);
+        }
+        if (path.contains('/archival-memory')) {
+          return http.Response(jsonEncode([]), 200);
+        }
+        if (path.endsWith('/messages') && req.method == 'POST') {
+          messageCalls++;
+          return http.Response(
+              jsonEncode({
+                'messages': [
+                  {'message_type': 'assistant_message', 'content': 'Hey.'}
+                ]
+              }),
+              200);
+        }
+        return http.Response('not found', 404);
+      });
+}
+
+EvaController controllerFor(FakeLetta fake) {
+  final settings = EvaSettings(serverUrl: 'http://test.local:8283', agentId: _agentId);
+  final api = LettaApi(settings.serverUrl, client: fake.client());
+  return EvaController(api: api, settings: settings);
+}
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  group('connect()', () {
+    test('server down -> error status, not live, error surfaced', () async {
+      final fake = FakeLetta(up: false);
+      final c = controllerFor(fake);
+
+      await c.connect();
+
+      expect(c.status, ConnectionStatus.error);
+      expect(c.live, isFalse);
+      expect(c.serverError, isNotNull);
+    });
+
+    test('server up -> live, agent + memory loaded', () async {
+      final fake = FakeLetta(up: true);
+      final c = controllerFor(fake);
+
+      await c.connect();
+
+      expect(c.status, ConnectionStatus.live);
+      expect(c.live, isTrue);
+      // memory notebook populated from the human block
+      expect(c.memories.any((m) => m.text.contains('coffee')), isTrue);
+    });
+  });
+
+  group('disconnection mid-session', () {
+    test('send while server is down -> graceful system message, not stuck thinking',
+        () async {
+      final fake = FakeLetta(up: true);
+      final c = controllerFor(fake);
+      await c.connect();
+      expect(c.live, isTrue);
+
+      // Server drops after we were live.
+      fake.up = false;
+      c.draft.text = 'you there?';
+      c.send();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // The app must not hang in the "thinking" state.
+      expect(c.thinking, isFalse);
+      // A system line explains the failure.
+      expect(c.messages.where((m) => m.from == Speaker.system).isNotEmpty, isTrue);
+      expect(
+          c.messages.any((m) => m.text.toLowerCase().contains("couldn't reach eva")), isTrue);
+    });
+
+    test('DOCUMENTS current gap: a failed send does NOT flip status off live', () async {
+      final fake = FakeLetta(up: true);
+      final c = controllerFor(fake);
+      await c.connect();
+
+      fake.up = false;
+      c.draft.text = 'ping';
+      c.send();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Reliability gap: status stays `live` even though the send failed — the
+      // app has no heartbeat, so it only "notices" a drop on the next send.
+      expect(c.status, ConnectionStatus.live);
+    });
+  });
+
+  group('recovery', () {
+    test('connect again after the server comes back -> live', () async {
+      final fake = FakeLetta(up: false);
+      final c = controllerFor(fake);
+      await c.connect();
+      expect(c.status, ConnectionStatus.error);
+
+      // Server comes back; a fresh connect() recovers.
+      fake.up = true;
+      await c.connect();
+
+      expect(c.status, ConnectionStatus.live);
+      expect(c.live, isTrue);
+    });
+
+    test('sending works again after a drop-then-recover (no manual reconnect needed)',
+        () async {
+      final fake = FakeLetta(up: true);
+      final c = controllerFor(fake);
+      await c.connect();
+
+      fake.up = false; // drop
+      c.draft.text = 'first';
+      c.send();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      fake.up = true; // recover
+      final before = fake.messageCalls;
+      c.draft.text = 'second';
+      c.send();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // The next send reaches the server again.
+      expect(fake.messageCalls, greaterThan(before));
+    });
+  });
+}
