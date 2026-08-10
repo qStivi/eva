@@ -43,6 +43,14 @@ Living list of what's next, roughly ordered. Updated 2026-07-21.
   hard task, not per message.
 - ~~Journal / Logseq tool~~ — **dropped**: the backend (memory + tools) covers this.
 
+## Eva inside Home Assistant (planned 2026-08-10)
+- **Eva as an HA conversation agent** — expose the existing Eva (Letta agent) through
+  HA's Assist pipeline via a thin OpenAI-compatible shim in `eva-web`, so you can talk
+  to her (text + voice) from HA's surfaces (companion app, browser, voice satellites).
+  Additive, low-risk, and gives the "big arc" its missing always-on/phone-reachable
+  seam for free. Design + build phases in
+  [docs/2026-08-10-EVA-HA-AGENT-PLAN.md](2026-08-10-EVA-HA-AGENT-PLAN.md).
+
 ## The big arc — "Eva with hands, working in the background"
 - **Eva delegates to Claude Code** — instead of raw bash (scary), an MCP tool that
   hands a task to `claude -p "<task>"` and returns the result. Powerful executor with
