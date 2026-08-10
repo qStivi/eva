@@ -27,6 +27,7 @@ Then open `http://<host>:8284`.
 | `EVA_AGENT_ID` | — (required) | Letta agent id to chat with |
 | `EVA_WEB_USER` | `eva` | HTTP Basic auth username |
 | `EVA_WEB_PASSWORD` | — | HTTP Basic auth password; **empty disables auth** |
+| `EVA_API_KEY` | — | Bearer key for the OpenAI-compatible `/v1/*` routes; **empty disables `/v1` (routes 404)** |
 
 ## Deployment on this machine
 
@@ -52,6 +53,25 @@ sudo firewall-cmd --add-port=8284/tcp --permanent && sudo firewall-cmd --reload
 - `GET /` — chat UI
 - `GET /api/health` — `{ "letta": bool, "agent": "..." }`
 - `POST /api/chat` — `{ "message": "..." }` → `{ "reply": "...", "tools": [...] }`
+
+### OpenAI-compatible shim (Home Assistant conversation agent)
+
+Lets Home Assistant use Eva as an OpenAI-style conversation agent (Assist pipeline,
+voice, companion app). HA POSTs OpenAI-shaped chat; we forward the **last user turn**
+to the same Letta `eva` agent (Letta owns the history/memory) and return the reply in
+OpenAI shape. Same persona, memory, sleep-time, and HA-control tools as every other
+surface — one Eva, a new face. Auth is a **Bearer key** (`EVA_API_KEY`), separate from
+the UI's Basic auth. **LAN only — never expose these routes via the Cloudflare tunnel.**
+
+- `GET /v1/models` — lists a single model `eva` (some clients probe this)
+- `POST /v1/chat/completions` — standard request; honours `stream: true` (emits a
+  single SSE content chunk + `[DONE]`, since Letta returns the whole turn at once)
+
+HA setup: point an OpenAI-compatible conversation integration (e.g. *Extended OpenAI
+Conversation*) at base URL `http://<host>:8284/v1`, API key = `EVA_API_KEY`, model
+`eva`. Turn **off** "Control Home Assistant / expose Assist API" — Eva already controls
+the house through her own HA tools, so don't inject HA's function schemas on top.
+See [`docs/2026-08-10-EVA-HA-AGENT-PLAN.md`](../docs/2026-08-10-EVA-HA-AGENT-PLAN.md).
 
 ## Notes
 
