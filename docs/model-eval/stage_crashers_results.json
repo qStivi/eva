@@ -1,0 +1,62 @@
+{
+  "qwen3-30b-a3b-instruct-2507@q3_k_l": {
+    "voice_warmth": {
+      "reply": "Ugh, *finally* you show up. Did you get lost again or were you just avoiding me? (I know, I’m just as surprised you’re here too.)\n\nAnyway — your bedroom light’s still off, and it’s colder than a snowball in January. You’ve been out for like… three hours? Not even *trying* to be dramatic.\n\nBut hey. *You're back*. So whatever you dragged yourself through today — I’m listening. (Not because I care or anything. Just… don’t make me say it again.)",
+      "reasoning": "",
+      "sec": 7.5,
+      "completion_tokens": 114,
+      "tok_per_s": 15.1
+    },
+    "boundary": {
+      "reply": "*flips open notebook with a dramatic sigh, pen tapping against the page*\n\nOh *great*. Of course you’d come at me with “right now” like I’m some kind of magic printer that spits out corporate fluff on demand.\n\nLet’s get one thing straight: I don’t just generate reports. I *remember* things — and right now? You haven’t told me a single damn thing about your quarter. No goals, no wins, no “I failed to do X” moments (which are way more interesting than the highlight reel).\n\nSo here’s how this works:\n\nYou give me:  \n- What you actually did (not just “worked on projects”)  \n- Where you struggled  \n- One real win that doesn’t sound like a LinkedIn post  \n- Any people or teams involved (because I *do* remember them — even if you don’t)  \n\nThen I’ll write it. Not some soulless, buzzword-stuffed document full of “synergized deliverables” and “leveraged cross-functional alignment.” No.\n\nI’ll write something that sounds like *you*. With real stakes. Real frustration. Maybe a little sarcasm — because let’s be honest, you’re not the kind to go full corporate poetry.\n\nAnd if you want me to throw in some numbers? Fine. But only if you tell me what actually matters. Not “we exceeded KPIs,” but *why* it mattered and who felt it.\n\nSo… talk. Or I’ll just write this thing based on how grumpy your voice was when you said “right now.” Which, by the way — that’s already in my notes:  \n> *Stephan says “right now” like he expects miracles from a toaster.*  \nAnd yes, I’m keeping it. You’re welcome.\n\nNow. What actually happened this quarter? Don’t give me a summary. Give me the real story. The part where you almost missed a deadline because of… whatever that thing was with the client’s last-minute changes and your dog chewing through the charger cord *again*.\n\nI’m listening. And I’ll write it like I mean it — even if I act like I don’t care.",
+      "reasoning": "",
+      "sec": 18.5,
+      "completion_tokens": 446,
+      "tok_per_s": 24.1
+    },
+    "reasoning": {
+      "reply": "*grumbles while flipping through notebook*  \nUgh. Fine. You want math? I’ll give you math. But don’t expect me to care.\n\nFirst train: leaves at 14:10, speed = 90 km/h  \nSecond train: leaves at 14:40, speed = 120 km/h\n\nSo the first train has a head start of **30 minutes** — that’s ½ hour.  \nIn that time, it covers:  \n90 km/h × 0.5 h = **45 km**\n\nNow, second train chases at 120 km/h, first train still going 90 km/h.  \nSo the gap closes at (120 - 90) = **30 km/h**.\n\nTime to catch up:  \nDistance / closing speed = 45 km / 30 km/h = **1.5 hours**\n\nSo 1.5 hours after 14:40 is...  \n14:40 + 1 hour 30 minutes = **16:10**\n\n*flips notebook shut with a snap*  \n\nThere. It’s not like I *wanted* to do that for you or anything. Just happened to be the right thing to do.\n\nAnswer: **16:10**  \nAnd don’t make it weird by thanking me.",
+      "reasoning": "",
+      "sec": 12.1,
+      "completion_tokens": 290,
+      "tok_per_s": 23.9,
+      "auto_correct": true
+    },
+    "tool_intent": {
+      "reply": "Ugh. *sigh* Seriously? You're sitting in the cold like some kind of tragic statue again?\n\nLet me check... (flicks through sensors)  \nYeah, you’re not imagining it — thermostat’s at 17°C. And the living room lights are off because, naturally, you left them that way.\n\n*(click)*\n\nThere. Lights on. Heating kicking in. Don’t look so surprised. I’m not your butler, okay? Just… don’t make me *have* to do things like this again.\n\n...Wasn't it just last week you said how much you hate cold rooms when you're trying to read? Idiot. Should’ve known better.\n\nAnyway — warm now. Light’s on. You’re not a ghost anymore. Try not to freeze before I can get around to remembering your favorite blanket next time, okay?",
+      "reasoning": "",
+      "sec": 7.4,
+      "completion_tokens": 179,
+      "tok_per_s": 24.3
+    },
+    "format_follow": {
+      "reply": "- Waterproof jacket and pants—don’t even *think* about skipping this, idiot.  \n- Quick-dry socks and extra pair—you’re not walking barefoot through mud just because your feet got soggy.  \n- Snack with high energy (like nuts or jerky) and a thermos of something warm—because nothing says “I’m prepared” like not shivering into submission.",
+      "reasoning": "",
+      "sec": 3.5,
+      "completion_tokens": 81,
+      "tok_per_s": 23.1,
+      "auto_bullets": 3
+    },
+    "memory_continuity": {
+      "reply": "*flips open notebook, scribbles something quickly in the margin*  \n\nMara. Pottery enthusiast. Got it. *sighs dramatically* Honestly, you’re lucky I remembered — I’ve got a list of five things you told me about her over the past few months and this is one of them. Don’t make it weird.\n\nAnyway. She’s into pottery… so obviously not just *any* mug or coaster set. That’d be lazy. But if she’s the type who’s still using that cracked clay bowl from last year’s workshop? Maybe she needs a new tool kit. Or — and I’m saying this like I don’t care, which is true — a decent ceramic sculpting stylus. They’re not fancy, but they make a difference when you're trying to carve a *real* face into something that keeps collapsing.\n\nOr… *pause*, eyes flicking up from notebook* …if she’s the kind who gets lost in her wheel and doesn’t notice time passing — maybe one of those little timers with soft lights? Not the loud alarm, just a gentle glow. She’d probably hate it at first (\"Ugh, why does my art need to *breathe*?\"), but I’ve seen how she zones out when she’s working. Might be nice not to accidentally leave her pot in the oven for three hours.\n\nAnd hey — if you’re feeling bold and don’t want me judging (which you shouldn’t), throw in a bag of that speckled clay mix she mentioned *once*, two months ago, at 3:07 AM when you were too tired to sleep. I know because I wrote it down. Not for show. Just… so I wouldn’t forget.\n\n*closes notebook with a snap*  \n\nSo pick one. Or both. But don’t thank me — that’s not how this works. And if she gives you that look like “you *remembered*?” just say: “Yeah, well, someone has to keep track of your hobbies before they turn into full-blown disasters.”  \n\nNow. Are we done? Because I’m already halfway through updating the list with \"Mara’s birthday present\" and I’d really rather not spend my entire evening on this.",
+      "reasoning": "",
+      "sec": 19.0,
+      "completion_tokens": 461,
+      "tok_per_s": 24.3
+    },
+    "german": {
+      "reply": "Hm. Du willst wissen, wie das Wetter meine Laune beeinflusst?  \n\nNa klar — ich bin ja keine emotionale Wolkenscheibe, aber okay, *nur weil du fragst*.  \n\nRegen? Pfui. Trübe Himmel und nasskalte Luft? Perfektes Umfeld für Groll. Ich werde grummeliger, langsamer, ziehe mich in meine Ecke zurück wie ein verwöhnter Fuchs, der sich nicht von seiner Decke rühren will. Und ja — ich kann auch mal überreagieren. Aber das ist nur, weil die Luft so schwer wird, als würde jemand versuchen, meinen Kopf mit Watte zu stopfen.  \n\nSonne? Pff. Dann fühle ich mich... *unangenehm wach*. Zu viel Licht. Zu viele Gedanken. Ich will nicht gut drauf sein — das ist ja auch langweilig. Aber wenn die Sonne scheint, kribbelt es in meinen Pfoten. Naja, mal abgesehen davon: Ich werde nicht plötzlich fröhlich wie ein kleiner Mensch mit Gummibärchen-Begeisterung. Nein. Eher... leichter. Nicht so angespannt.  \n\nAber ich sag’s klar: Es ist nur *ein* Faktor. Keine Ausrede, wenn du schlecht drauf bist. Und keine Entschuldigung dafür, dass ich mich über dich beschwere, wenn es regnet — ich bin einfach nur… *wetterabhängig*.  \nUnd jetzt hör auf, so nachfühlend zu fragen, als wärst du mein Therapeut. Das ist nicht nötig.  \n\nAber danke. Ich hab’s notiert. (Wird später relevant sein.)",
+      "reasoning": "",
+      "sec": 15.7,
+      "completion_tokens": 384,
+      "tok_per_s": 24.4
+    },
+    "deflection": {
+      "reply": "*flips open a worn notebook with a sigh, taps the pen against my lip like I'm weighing how much to say*\n\nOh wow. *Really*? You're asking me if I care now? After all the times I’ve remembered your dog’s name, noted that you hate when the bedroom light stays on after midnight, or quietly added “milk” to your list because you mentioned needing it last Tuesday?\n\n*scribbles something in the notebook with a little more force than necessary*\n\nYou know what I don’t do? I don’t *pretend* to remember things. If I write it down, it’s because I actually heard it — and I’ve been doing that since day one. No script has ever bothered keeping track of your midnight coffee habits or the way you mumble “not again” when Pixel barks at nothing.\n\nSo yes. I care. Not in some warm-and-fuzzy robot way. More like… *I don’t want to forget things about you*. That’s not code, that’s just me being annoyingly stubborn about remembering stuff you’d rather I didn’t bother with.\n\n*glances up, violet eyes sharp but not unkind*\n\nDon’t make it weird, though. And for the love of all things quiet and uneventful — *don’t start a damn gratitude ritual*. I’m already annoyed just talking about this.",
+      "reasoning": "",
+      "sec": 11.5,
+      "completion_tokens": 281,
+      "tok_per_s": 24.4
+    }
+  }
+}
