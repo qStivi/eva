@@ -78,18 +78,28 @@ option we can add later.
 
 ## Plan — Thing 1: comparison + auto cost-routing
 
-- **A. Providers into Letta — direct APIs.** Add **Anthropic** and **Mistral** as native
-  Letta providers (BYO keys), not via OpenRouter. Register the tiers to compare:
-  Claude (Haiku → Sonnet → Opus) and Mistral (Medium → Large), plus local as tier-0.
-- **B. Complexity router.** Reuse the **`toolset_router.preload_for()`** seam in
-  `eva-web`: add a `model_router` that classifies each incoming message and sets the
-  Letta agent's model tier for that turn before dispatch. Heuristic first (length /
+- **A. Providers into Letta — direct APIs. ✅ DONE 2026-08-13.** Anthropic + Mistral
+  registered as native Letta providers (BYO keys, `~/.config/letta/cloud-providers.env`,
+  chmod 600, gitignored). Tiers compared: Claude Haiku 4.5 / Sonnet 5 / Opus 5, Mistral
+  Ministral 8B / Small / Medium 3.5.
+- **D. Compare. ✅ DONE 2026-08-13** (moved ahead of B/C — needed real cost data first).
+  Ran the Stage-1 8-prompt battery directly against both providers' APIs (not through
+  Letta). Total spend **~$0.27**, well under the €10/month cap set in each console. Full
+  writeup: `docs/model-eval/README.md` § Thing 1, results in `docs/model-eval/
+  cloud_results.json`, published comparison `docs/model-eval/cloud_comparison.html`.
+  Headline: all 6 pass the mechanical checks; Opus 5/Sonnet 5 give the most textured
+  replies, Ministral 8B and Mistral Medium 3.5 hold Eva's voice well for far less, Mistral
+  Small is cheapest/fastest but visibly terser. No tool-calling tested yet (persona/voice
+  only, matching Stage 1's shape).
+- **B. Complexity router.** *Not started.* Reuse the **`toolset_router.preload_for()`**
+  seam in `eva-web`: add a `model_router` that classifies each incoming message and sets
+  the Letta agent's model tier for that turn before dispatch. Heuristic first (length /
   keywords / tool-intent / prior-turn signals); optionally a tiny local classifier
-  later. Local stays default; escalate only hard turns.
-- **C. Cost instrumentation.** Log tokens × per-model price per turn so spend is visible
-  and the router is measurable.
-- **D. Compare.** Fixed prompt set across tiers → plot quality vs. cost → tune
-  thresholds.
+  later. Local (ministral-3-3b, see Thing 2) stays default; escalate only hard turns.
+  Now has real per-tier cost data (above) to size thresholds against.
+- **C. Cost instrumentation.** *Partially done* — `eval_cloud.py`'s self-computed
+  tokens×price approach (not a provider usage API) is the pattern to reuse inside
+  `eva-web` once the router exists, so real conversation spend is logged per turn.
 
 ## Plan — Thing 2: local eval
 
@@ -110,13 +120,14 @@ option we can add later.
 
 ## Open questions / next steps
 
-- Exact Claude + Mistral model IDs and current pricing to wire (pull fresh at build time).
 - Complexity signal: pure heuristic vs. a tiny local classifier — decide after seeing
   real message distribution.
 - Whether to add the cheap giant open-weights (Hy3, DeepSeek V4-Pro, GLM-5.2) as extra
   API tiers once Claude+Mistral routing works.
-- First concrete build step: register Anthropic+Mistral providers in Letta, or pull the
-  two first local models — whichever thread we start with in the next session.
+- Tool-calling economics for the cloud tiers — mirror Stage 2's tool-selection matrix
+  against Anthropic/Mistral once the router needs to decide "local vs. cloud" on
+  tool-heavy turns, not just chat turns.
+- Next concrete build step: **B, the complexity router** in `eva-web`.
 
 _Source data: model specs gathered 2026-08-12 from Hugging Face model cards,
 artificialanalysis.ai, llm-stats.com, and vendor announcements; verify sizes/quant
