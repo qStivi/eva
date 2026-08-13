@@ -1,22 +1,28 @@
 # Eva — model ladder: local brains + auto cost-routing
 
-_Planning session, 2026-08-12. Two related-but-separate threads that converge on one
-idea: a **tiered model ladder** for Eva — a local default brain, escalating to cloud
-APIs only for genuinely hard turns, auto-routed by task complexity. Stays on **Letta**.
+_Planning session, 2026-08-12. Two related-but-separate threads. Stays on **Letta**.
 Supersedes the roadmap's "cloud-escalation via OpenRouter" bullet: we go **direct
 provider APIs** (Anthropic + Mistral) instead._
+
+**Correction, 2026-08-13:** originally scoped as one ladder where the local winner is
+tier-0 and cloud only escalates hard turns. The user corrected this: **Thing 1's ladder
+is fully API — no local tier, no local fallback at all.** Thing 2's local winner
+(ministral-3-3b, see below) stays Eva's actual live brain, but that's a separate,
+already-shipped decision — it does **not** feed into Thing 1's router. The two threads
+no longer converge into one ladder; they're independent outcomes that both happen to
+be about "which model, when."
 
 ## The two things
 
 1. **Compare API models + auto cost-routing.** Claude and Mistral, both within each
    company's lineup and mixed across them. See how expensive they get; pick a model by
-   task complexity **automatically** to optimize cost. Keep the Letta backend.
+   task complexity **automatically** to optimize cost, among cloud tiers only. Keep the
+   Letta backend.
 2. **Which models are viable to run locally?** A batch pulled from a benchmark site
    (filtered to a 24 GB card there) — check what actually runs **on this machine**,
    using quantized and/or smaller sibling models where the headline model won't fit.
-
-They converge: the local winner becomes the ladder's **tier-0 default**; Claude/Mistral
-are the escalation tiers; the giant open-weights models are cloud-only.
+   (Already resolved — see Thing 2 below. Its winner is Eva's live brain, independently
+   of Thing 1.)
 
 ## The real hardware target (this machine, not a 24 GB card)
 
@@ -91,12 +97,16 @@ option we can add later.
   replies, Ministral 8B and Mistral Medium 3.5 hold Eva's voice well for far less, Mistral
   Small is cheapest/fastest but visibly terser. No tool-calling tested yet (persona/voice
   only, matching Stage 1's shape).
-- **B. Complexity router.** *Not started.* Reuse the **`toolset_router.preload_for()`**
-  seam in `eva-web`: add a `model_router` that classifies each incoming message and sets
-  the Letta agent's model tier for that turn before dispatch. Heuristic first (length /
-  keywords / tool-intent / prior-turn signals); optionally a tiny local classifier
-  later. Local (ministral-3-3b, see Thing 2) stays default; escalate only hard turns.
-  Now has real per-tier cost data (above) to size thresholds against.
+- **B. Complexity router.** *Not started.* **Fully API — no local tier** (2026-08-13
+  correction; see top of doc). Reuse the **`toolset_router.preload_for()`** seam in
+  `eva-web`: add a `model_router` that classifies each incoming message and picks a
+  *cloud* tier for that turn before dispatch — cheapest-that-can-handle-it, not
+  local-then-escalate. Candidate default-cheap tier: Ministral 8B or Haiku 4.5 (both
+  ≈$0.002/turn); escalate to Sonnet 5 / Mistral Medium 3.5 for harder turns, Opus 5 only
+  for the genuinely hard ones. Heuristic first (length / keywords / tool-intent /
+  prior-turn signals); optionally a tiny local classifier *for routing decisions only*
+  (not for answering) later. Now has real per-tier cost data (above) to size thresholds
+  against.
 - **C. Cost instrumentation.** *Partially done* — `eval_cloud.py`'s self-computed
   tokens×price approach (not a provider usage API) is the pattern to reuse inside
   `eva-web` once the router exists, so real conversation spend is logged per turn.
@@ -115,8 +125,13 @@ option we can add later.
 - **Stay on Letta.** No backend change.
 - **Direct provider APIs** for Claude + Mistral (not OpenRouter — overrides the
   2026-07-21 roadmap bullet).
-- **Target = this machine** (RX 9070 XT, 16 GB, ROCm/GGUF), not a 24 GB card.
-- **Serving via LM Studio** (existing local path).
+- **Target = this machine** (RX 9070 XT, 16 GB, ROCm/GGUF), not a 24 GB card — applies
+  to Thing 2 (local eval) only.
+- **Serving via LM Studio** for Thing 2's local brain (existing local path).
+- **Thing 1's ladder is fully API, no local tier** (2026-08-13). The router in step B
+  picks among Claude/Mistral cloud tiers only; it never falls back to a local model.
+  Eva's actual live brain (ministral-3-3b, local) is a separate, unrelated decision from
+  Thing 2 — Thing 1 does not touch it.
 
 ## Open questions / next steps
 

@@ -64,4 +64,8 @@ Mistral Small is fastest and cheapest but visibly terser ("I actually care." —
 sentences, done). No tool-calling tested this round (persona/voice only, matching
 Stage 1's shape) — tool-calling economics for the cloud tiers is a follow-up, same as
 the local Stage 2 matrix. Next: build the complexity router (plan step B) using this
-cost data to decide when a turn is worth escalating past the local tier-0 default.
+cost data to pick a cost-efficient cloud tier per turn.
+
+**Correction 2026-08-13:** this ladder is **fully API, no local tier** — it does not
+escalate from a local default. Eva's actual live brain (ministral-3-3b, local, see
+Thing 2 above) is unrelated to this router. See the plan doc's top-of-file correction.
