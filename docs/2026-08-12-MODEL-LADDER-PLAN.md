@@ -177,12 +177,44 @@ issue for this.
   (lives in `~/.config`, not the container image) but a Letta image update could shift
   these line numbers/logic enough to need re-diffing against the new version.
 - Live-tested: single-turn and multi-turn Mistral conversation both work on the real
-  `eva` agent now, including Mistral returning nonzero `cached_input_tokens` (caching
-  appears to work there too, though its pricing isn't separately confirmed).
+  `eva` agent now.
 
 Consider upstreaming this as a real letta-ai/letta PR at some point — it's a clean,
 narrowly-scoped fix that benefits any BYOK provider routed through the OpenAI-compatible
-client, not just Mistral.
+client, not just Mistral. (User's plan: research Letta's policy on AI-generated
+contributions before opening one.)
+
+### Follow-up: Mistral prompt caching wasn't actually reliable (fixed same day)
+
+The `user`-field fix alone got Mistral *working*, but every turn was still paying full
+price — Letta sends the complete context (persona, tools, memory, history) on **every**
+call to **every** provider; that's fundamental to Letta's stateless-per-call architecture,
+true for all providers, not something a patch changes. The question was whether that
+resend gets a cache discount.
+
+Checked Mistral's real API docs (not an aggregator): Mistral **does** support prompt
+caching at the same 90% discount as Anthropic, but — unlike Anthropic, which caches
+automatically — Mistral requires an explicit `prompt_cache_key` parameter on each request
+("increases the chance of a cache hit, but doesn't guarantee one" without it). Letta's
+`ChatCompletionRequest` schema has no field for this at all, and its one existing
+cache-key helper (`_apply_prompt_cache_settings`) is explicitly real-OpenAI-only — its own
+docstring says it deliberately *avoids* setting a key for OpenAI, since OpenAI's own
+automatic hash-based routing already works well and an explicit key can hurt it there.
+Mistral's docs recommend the opposite. Different providers, different caching designs —
+this needed new code, not a tweak to existing logic.
+
+**Fix:** added `_apply_mistral_cache_key()` to the same `openai_client.py` patch —
+injects `prompt_cache_key` (keyed on the acting user's id) via the SDK's `extra_body`
+mechanism (already used elsewhere in this file for OpenRouter-specific fields), only for
+`provider_name == "mistral"`. Confirmed live: 4 consecutive turns, cache hit on every turn
+after the first, cached portion growing with the conversation (4,608 → 4,736 tokens) —
+reliable, not incidental.
+
+This second fix is more of a **feature addition** than a bug fix (Letta was doing what it
+documented, just not what Mistral needs) — worth keeping that distinction in mind if/when
+researching contribution norms for a PR: the `user`-field fix is an uncontroversial
+correctness bug, this one is closer to "add Mistral-specific caching support," which a
+maintainer might reasonably want configurable/discussed rather than hardcoded.
 
 ## Open questions / next steps
 
