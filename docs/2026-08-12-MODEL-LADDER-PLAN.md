@@ -97,19 +97,26 @@ option we can add later.
   replies, Ministral 8B and Mistral Medium 3.5 hold Eva's voice well for far less, Mistral
   Small is cheapest/fastest but visibly terser. No tool-calling tested yet (persona/voice
   only, matching Stage 1's shape).
-- **B. Complexity router.** *Not started.* **Fully API — no local tier** (2026-08-13
-  correction; see top of doc). Reuse the **`toolset_router.preload_for()`** seam in
-  `eva-web`: add a `model_router` that classifies each incoming message and picks a
-  *cloud* tier for that turn before dispatch — cheapest-that-can-handle-it, not
-  local-then-escalate. Candidate default-cheap tier: Ministral 8B or Haiku 4.5 (both
-  ≈$0.002/turn); escalate to Sonnet 5 / Mistral Medium 3.5 for harder turns, Opus 5 only
-  for the genuinely hard ones. Heuristic first (length / keywords / tool-intent /
-  prior-turn signals); optionally a tiny local classifier *for routing decisions only*
-  (not for answering) later. Now has real per-tier cost data (above) to size thresholds
-  against.
-- **C. Cost instrumentation.** *Partially done* — `eval_cloud.py`'s self-computed
-  tokens×price approach (not a provider usage API) is the pattern to reuse inside
-  `eva-web` once the router exists, so real conversation spend is logged per turn.
+- **B. Complexity router. ✅ LIVE 2026-08-13.** Built on `feat/eva-ha-agent` (where
+  `eva-web/app.py` actually lives — this branch had gone stale on that file, see commit
+  note) as `eva-web/model_router.py`, wired into the shared `run_turn()` used by both the
+  web UI and the HA `/v1` shim. **Anthropic-only** (Haiku 4.5 / Sonnet 5 / Opus 5) —
+  Mistral BYOK is broken in Letta itself: switching the live agent to any `mistral/*`
+  model 422s with `extra_forbidden: body.user` (confirmed live 2026-08-13, no existing
+  letta-ai/letta issue found). Per the user's explicit choice: **escalates freely by
+  complexity, no artificial stickiness, and this is now Eva's actual live brain** —
+  ministral-3-3b local is no longer the default. Heuristic v1 scores length + regex
+  signal groups (reasoning / emotional / boundary-test / identity-authenticity — the
+  last one added after the comparison showed it's the biggest voice-quality gap between
+  tiers) into cheap/mid/hard. Live-tested: cheap→mid escalation on an identity question
+  produced a visibly richer reply; a same-tier follow-up **hit Letta's automatic
+  Anthropic prompt cache** (confirmed empirically, zero extra config) for a 10x cost
+  drop. Commit: `feat/eva-ha-agent` f28d971.
+- **C. Cost instrumentation. ✅ DONE 2026-08-13**, and better than planned — rather than
+  self-estimating tokens×price, `model_router.py` reads Letta's **real** per-turn
+  `usage_statistics` (including the cache read/write split), computes exact cost, and
+  logs it to `~/.config/eva-web/cost_log.jsonl` (outside the repo). `GET /api/cost` on
+  `eva-web` sums it with a per-tier breakdown, so spend is visible on demand.
 
 ## Plan — Thing 2: local eval
 
@@ -135,14 +142,20 @@ option we can add later.
 
 ## Open questions / next steps
 
-- Complexity signal: pure heuristic vs. a tiny local classifier — decide after seeing
-  real message distribution.
+- **Mistral is unusable live** — `mistral/*` model 422s on the live agent (upstream Letta
+  BYOK bug). File a letta-ai/letta issue and/or investigate a local patch (same pattern
+  as `url_validation.py`) if the cross-company mix still matters once this is confirmed
+  Anthropic-only isn't enough.
+- Complexity signal: heuristic v1 is live and reasonably tuned (see step B) but untested
+  against real message volume yet — revisit thresholds/signals after seeing how often it
+  actually escalates in daily use, and watch `~/.config/eva-web/cost_log.jsonl` against
+  the €10 cap.
 - Whether to add the cheap giant open-weights (Hy3, DeepSeek V4-Pro, GLM-5.2) as extra
   API tiers once Claude+Mistral routing works.
 - Tool-calling economics for the cloud tiers — mirror Stage 2's tool-selection matrix
-  against Anthropic/Mistral once the router needs to decide "local vs. cloud" on
-  tool-heavy turns, not just chat turns.
-- Next concrete build step: **B, the complexity router** in `eva-web`.
+  against the now-live router, since every real turn now runs with the full tool set
+  attached (not the bare eval_cloud.py setup) and costs ~10x more per turn than that
+  comparison implied.
 
 _Source data: model specs gathered 2026-08-12 from Hugging Face model cards,
 artificialanalysis.ai, llm-stats.com, and vendor announcements; verify sizes/quant
