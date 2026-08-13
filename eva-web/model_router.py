@@ -31,14 +31,20 @@ including the prompt-cache read/write split -- not self-estimated like the
 eval_cloud.py comparison harness. Letta already triggers automatic caching for
 Anthropic with zero extra config (confirmed empirically 2026-08-13, a same-tier
 follow-up turn hit cache for ~10.6k of ~10.7k input tokens, 10% price instead
-of 100%); Mistral calls have shown nonzero `cached_input_tokens` too, though
-its cache pricing isn't separately confirmed, so the same multipliers below are
-applied as an approximation -- the dollar amounts on Mistral's tiers are small
-enough that the error is negligible. Switching tiers forfeits that tier's cache
-for the turn that switches in but does NOT invalidate the tier you left -- each
-model's cache lives independently, so a detour to a harder tier and back is one
-expensive turn, not an ongoing penalty. Logged to
-~/.config/eva-web/cost_log.jsonl (one JSON line per turn) so spend is visible.
+of 100%). **Mistral needed a second local patch to get the same reliability**:
+its caching (also a 90% discount, matching Anthropic's rate) requires an
+explicit `prompt_cache_key` per Mistral's own docs -- without one a hit "isn't
+guaranteed" (Letta's schema has no field for it at all). Added
+`_apply_mistral_cache_key()` to the same local `openai_client.py` patch, keyed
+on the acting user's id, injected via `extra_body` (the mechanism this file
+already uses for OpenRouter-specific fields). Confirmed live 2026-08-13: 4
+consecutive Mistral turns, cache hit on every turn after the first, cached
+portion growing with the conversation (4608 -> 4736 tokens) -- reliable, not
+incidental. Switching tiers forfeits that tier's cache for the turn that
+switches in but does NOT invalidate the tier you left -- each model's cache
+lives independently, so a detour to a harder tier and back is one expensive
+turn, not an ongoing penalty. Logged to ~/.config/eva-web/cost_log.jsonl (one
+JSON line per turn) so spend is visible.
 
 Stdlib only (matches eva-web). Router failure must never block a chat.
 """
