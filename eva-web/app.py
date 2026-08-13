@@ -49,9 +49,16 @@ try:
 except Exception:  # noqa: BLE001
     preload_for = None
 
+try:
+    # Complexity-based cloud model routing (see model_router.py). Best-effort: if
+    # it's missing or errors, chat still works — Eva just keeps her current model.
+    import model_router
+except Exception:  # noqa: BLE001
+    model_router = None
+
 
 def letta_send(message: str):
-    """Send one user turn to Letta; return (reply_text, [tool_names])."""
+    """Send one user turn to Letta; return (reply_text, [tool_names], usage)."""
     url = f"{LETTA_HOST}/v1/agents/{AGENT_ID}/messages"
     body = json.dumps({"messages": [{"role": "user", "content": message}]}).encode()
     req = urllib.request.Request(
@@ -70,21 +77,35 @@ def letta_send(message: str):
             if name:
                 tools.append(name)
     reply = "\n".join(p.strip() for p in reply_parts).strip()
-    return reply or "(no reply)", tools
+    return reply or "(no reply)", tools, data.get("usage")
 
 
 def run_turn(message: str):
-    """Pre-attach the right toolsets (best-effort) then send one turn to Letta.
+    """Route to a cloud model tier + pre-attach the right toolsets (both
+    best-effort) then send one turn to Letta. Returns (reply, tools, tier, cost).
 
     Shared by the web UI (/api/chat) and the OpenAI-compatible shim
-    (/v1/chat/completions) so both surfaces get the lazy toolset router.
+    (/v1/chat/completions) so both surfaces get the same routing + toolsets.
     """
+    tier = None
+    if model_router is not None and AGENT_ID:
+        try:
+            tier = model_router.route_before_send(message, AGENT_ID, LETTA_HOST)
+        except Exception:  # noqa: BLE001 — best-effort; never block the chat
+            pass
     if preload_for is not None and AGENT_ID:
         try:
             preload_for(message, AGENT_ID, LETTA_HOST)
         except Exception:  # noqa: BLE001 — best-effort; never block the chat
             pass
-    return letta_send(message)
+    reply, tools, usage = letta_send(message)
+    cost = None
+    if model_router is not None and tier is not None:
+        try:
+            cost = round(model_router.log_turn(tier, usage, message), 6)
+        except Exception:  # noqa: BLE001 — logging must never break chat
+            pass
+    return reply, tools, tier, cost
 
 
 def _last_user_message(payload: dict) -> str:
@@ -177,6 +198,10 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 ok = False
             return self._json(200, {"letta": ok, "agent": AGENT_ID})
+        if self.path == "/api/cost":
+            if model_router is None:
+                return self._json(200, {"error": "model_router not loaded"})
+            return self._json(200, model_router.running_total())
         self.send_error(404)
 
     def do_POST(self):
@@ -196,8 +221,8 @@ class Handler(BaseHTTPRequestHandler):
         if not message:
             return self._json(400, {"error": "empty message"})
         try:
-            reply, tools = run_turn(message)
-            return self._json(200, {"reply": reply, "tools": tools})
+            reply, tools, tier, cost = run_turn(message)
+            return self._json(200, {"reply": reply, "tools": tools, "tier": tier, "cost_usd": cost})
         except urllib.error.URLError as e:
             return self._json(502, {"error": f"Letta unreachable: {e.reason}"})
         except Exception as e:  # noqa: BLE001
@@ -234,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
         model = payload.get("model") or "eva"
         stream = bool(payload.get("stream"))
         try:
-            reply, _tools = run_turn(message)
+            reply, _tools, _tier, _cost = run_turn(message)
         except urllib.error.URLError as e:
             return self._json(502, {"error": {"message": f"Letta unreachable: {e.reason}", "type": "server_error"}})
         except Exception as e:  # noqa: BLE001
