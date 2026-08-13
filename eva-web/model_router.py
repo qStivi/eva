@@ -7,23 +7,37 @@ turn is sent -- cheapest tier that can plausibly handle it, escalating freely
 per message (no artificial stickiness; the user chose "let it escalate freely"
 over a sticky/conservative router on 2026-08-13).
 
-**Anthropic only for now.** Letta's Mistral BYOK client has an upstream bug:
-switching the live agent to any `mistral/*` model and sending a message fails
-with `422 extra_forbidden` on `body.user` -- Letta's OpenAI-compatible client
-sends a `user` field Mistral's stricter schema rejects. Confirmed 2026-08-13;
-no existing letta-ai/letta GitHub issue found for it. Revisit once fixed
-upstream or patched locally (same pattern as the url_validation.py bind-mount
-for the loopback-MCP block).
+**Mixes both companies** (the original ask): Mistral covers cheap+mid (it's
+roughly 10x cheaper than the equivalent Anthropic tier for comparable quality
+in the cloud_comparison.html bake-off), Opus 5 is reserved for genuinely hard
+turns where the extra quality is worth the cost.
+
+Mistral was broken here until 2026-08-13: Letta's OpenAI-compatible client (the
+code path Mistral is routed through, since MistralProvider uses
+model_endpoint_type="openai") unconditionally set an OpenAI `user` field that
+Mistral's stricter schema 422s on ("extra_forbidden: body.user"). No upstream
+letta-ai/letta issue existed for it, so it's patched locally -- see
+~/.config/letta/openai_client.py (bind-mounted over the container's copy via
+the letta.container Quadlet unit, same pattern as url_validation.py). Two call
+sites needed the fix: a stray `user=str()` in the ChatCompletionRequest
+constructor (this was the actual leak -- pydantic's exclude_unset=True doesn't
+omit a field that was explicitly passed, even as an empty string) and the later
+"always set user id" reassignment, both now guarded on
+`llm_config.provider_name in (None, "openai")`, mirroring a guard Letta already
+uses elsewhere in the same file for other OpenAI-specific fields.
 
 Cost is read from Letta's own per-turn `usage` object -- real token counts,
-including the Anthropic prompt-cache read/write split -- not self-estimated
-like the eval_cloud.py comparison harness. Letta already triggers automatic
-caching for Anthropic with zero extra config: confirmed empirically 2026-08-13,
-a same-tier follow-up turn hit cache for ~10.6k of ~10.7k input tokens (10%
-price instead of 100%). Switching tiers forfeits that tier's cache for the turn
-that switches in (full price + a cache-write premium) but does NOT invalidate
-the tier you left -- each model's cache lives independently, so a detour to a
-harder tier and back is one expensive turn, not an ongoing penalty. Logged to
+including the prompt-cache read/write split -- not self-estimated like the
+eval_cloud.py comparison harness. Letta already triggers automatic caching for
+Anthropic with zero extra config (confirmed empirically 2026-08-13, a same-tier
+follow-up turn hit cache for ~10.6k of ~10.7k input tokens, 10% price instead
+of 100%); Mistral calls have shown nonzero `cached_input_tokens` too, though
+its cache pricing isn't separately confirmed, so the same multipliers below are
+applied as an approximation -- the dollar amounts on Mistral's tiers are small
+enough that the error is negligible. Switching tiers forfeits that tier's cache
+for the turn that switches in but does NOT invalidate the tier you left -- each
+model's cache lives independently, so a detour to a harder tier and back is one
+expensive turn, not an ongoing penalty. Logged to
 ~/.config/eva-web/cost_log.jsonl (one JSON line per turn) so spend is visible.
 
 Stdlib only (matches eva-web). Router failure must never block a chat.
@@ -37,10 +51,11 @@ import urllib.request
 LOG_PATH = os.path.expanduser("~/.config/eva-web/cost_log.jsonl")
 
 # tier -> (Letta model handle, $/MTok base input, $/MTok output)
-# Confirmed 2026-08-13 against platform.claude.com/docs/en/about-claude/pricing.
+# Confirmed 2026-08-13 against platform.claude.com/docs/en/about-claude/pricing
+# and mistral.ai/pricing/api.
 TIERS = {
-    "cheap": ("anthropic/claude-haiku-4-5", 1.00, 5.00),
-    "mid": ("anthropic/claude-sonnet-5", 2.00, 10.00),
+    "cheap": ("mistral/ministral-8b-latest", 0.15, 0.15),
+    "mid": ("mistral/mistral-medium-latest", 1.50, 7.50),
     "hard": ("anthropic/claude-opus-5", 5.00, 25.00),
 }
 CACHE_WRITE_MULT = 1.25  # Anthropic 5-min cache write multiplier (Letta's default TTL)
