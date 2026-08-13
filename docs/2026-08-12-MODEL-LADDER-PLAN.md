@@ -100,18 +100,22 @@ option we can add later.
 - **B. Complexity router. ✅ LIVE 2026-08-13.** Built on `feat/eva-ha-agent` (where
   `eva-web/app.py` actually lives — this branch had gone stale on that file, see commit
   note) as `eva-web/model_router.py`, wired into the shared `run_turn()` used by both the
-  web UI and the HA `/v1` shim. **Anthropic-only** (Haiku 4.5 / Sonnet 5 / Opus 5) —
-  Mistral BYOK is broken in Letta itself: switching the live agent to any `mistral/*`
-  model 422s with `extra_forbidden: body.user` (confirmed live 2026-08-13, no existing
-  letta-ai/letta issue found). Per the user's explicit choice: **escalates freely by
+  web UI and the HA `/v1` shim. Per the user's explicit choice: **escalates freely by
   complexity, no artificial stickiness, and this is now Eva's actual live brain** —
   ministral-3-3b local is no longer the default. Heuristic v1 scores length + regex
   signal groups (reasoning / emotional / boundary-test / identity-authenticity — the
   last one added after the comparison showed it's the biggest voice-quality gap between
   tiers) into cheap/mid/hard. Live-tested: cheap→mid escalation on an identity question
   produced a visibly richer reply; a same-tier follow-up **hit Letta's automatic
-  Anthropic prompt cache** (confirmed empirically, zero extra config) for a 10x cost
-  drop. Commit: `feat/eva-ha-agent` f28d971.
+  prompt cache** (confirmed empirically, zero extra config) for a 10x cost drop.
+  Commits: `feat/eva-ha-agent` f28d971, 8ef23d2.
+
+  **Mistral BYOK fixed 2026-08-13** (see "Mistral bug — fixed locally" below) — tiers now
+  genuinely mix both companies: **cheap = Ministral 8B, mid = Mistral Medium 3.5, hard =
+  Opus 5** (Mistral is ~10x cheaper than the equivalent Anthropic tier for comparable
+  quality per the bake-off; Opus reserved for turns where the extra quality earns its
+  cost). Was Anthropic-only (Haiku/Sonnet/Opus) for a few hours between the router going
+  live and the fix landing.
 - **C. Cost instrumentation. ✅ DONE 2026-08-13**, and better than planned — rather than
   self-estimating tokens×price, `model_router.py` reads Letta's **real** per-turn
   `usage_statistics` (including the cache read/write split), computes exact cost, and
@@ -140,12 +144,48 @@ option we can add later.
   Eva's actual live brain (ministral-3-3b, local) is a separate, unrelated decision from
   Thing 2 — Thing 1 does not touch it.
 
+## Mistral bug — fixed locally (2026-08-13)
+
+Root cause found in Letta 0.16.7's `letta/llm_api/openai_client.py` (the generic
+OpenAI-compatible client Mistral is routed through, since `MistralProvider` uses
+`model_endpoint_type="openai"` — there's no Mistral-specific request path):
+
+1. **The real leak:** `ChatCompletionRequest(..., user=str(), ...)` in
+   `build_request_data()` explicitly passes `user=""` at construction time. Pydantic's
+   `model_dump(exclude_unset=True)` only omits fields that were never *passed* to the
+   constructor — an explicit empty string still counts as set, so it always serializes
+   into the request body regardless of any later conditional.
+2. **The visible symptom:** a second block ("always set user id for openai requests")
+   unconditionally does `data.user = self.actor.id` right after, for *every* provider
+   routed through this client — including non-OpenAI BYOK providers like Mistral, whose
+   stricter schema 422s on any field it doesn't recognize (`extra_forbidden`).
+
+Letta already has the right pattern elsewhere in the same file — `if llm_config.provider_name
+and llm_config.provider_name != "openai": <skip OpenAI-specific field>` (used for prompt-cache
+fields) — it just wasn't applied to `user`. Confirmed no existing letta-ai/letta GitHub
+issue for this.
+
+**Fix:** removed the `user=str()` default from the constructor, and guarded both
+"always set" reassignments (Responses API path + Chat Completions path) on
+`llm_config.provider_name in (None, "openai")`. Applied as a local patch, not upstream:
+- Patched file: `~/.config/letta/openai_client.py` (full file, copied from the container
+  and edited — not a diff/PR against letta-ai/letta).
+- Bind-mounted over the container's copy via
+  `~/.config/containers/systemd/letta.container` (`Volume=...ro,Z`), same pattern as the
+  existing `url_validation.py` override for the loopback-MCP block.
+- Restart `systemctl --user restart letta.service` to apply; survives normal restarts
+  (lives in `~/.config`, not the container image) but a Letta image update could shift
+  these line numbers/logic enough to need re-diffing against the new version.
+- Live-tested: single-turn and multi-turn Mistral conversation both work on the real
+  `eva` agent now, including Mistral returning nonzero `cached_input_tokens` (caching
+  appears to work there too, though its pricing isn't separately confirmed).
+
+Consider upstreaming this as a real letta-ai/letta PR at some point — it's a clean,
+narrowly-scoped fix that benefits any BYOK provider routed through the OpenAI-compatible
+client, not just Mistral.
+
 ## Open questions / next steps
 
-- **Mistral is unusable live** — `mistral/*` model 422s on the live agent (upstream Letta
-  BYOK bug). File a letta-ai/letta issue and/or investigate a local patch (same pattern
-  as `url_validation.py`) if the cross-company mix still matters once this is confirmed
-  Anthropic-only isn't enough.
 - Complexity signal: heuristic v1 is live and reasonably tuned (see step B) but untested
   against real message volume yet — revisit thresholds/signals after seeing how often it
   actually escalates in daily use, and watch `~/.config/eva-web/cost_log.jsonl` against
