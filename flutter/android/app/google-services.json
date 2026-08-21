@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "247436993476",
+    "project_id": "com-qstivi-eva",
+    "storage_bucket": "com-qstivi-eva.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:247436993476:android:96adc2cf22df87c34c3a91",
+        "android_client_info": {
+          "package_name": "com.qstivi.eva"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4OTRiz5bO-bU7klmk816HKAlnhVIW2Xs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
