@@ -46,6 +46,19 @@ class Passage {
   const Passage(this.id, this.text);
 }
 
+enum HistoryRole { user, assistant }
+
+/// One real turn from the conversation transcript — only what's needed to
+/// render it. System-role nudges, tool calls/returns, and reasoning are
+/// deliberately not represented here; the transcript view only ever shows
+/// what was actually said, same as the live send/receive path already does.
+class HistoryMessage {
+  final HistoryRole role;
+  final String text;
+  final DateTime at;
+  const HistoryMessage({required this.role, required this.text, required this.at});
+}
+
 /// Eva's scheduled-check-in config, from eva-task-runner via eva-web's
 /// /api/checkin/config proxy (see eva-task-runner/runner.py).
 class CheckinConfig {
@@ -257,6 +270,50 @@ class LettaApi {
             headers: _json, body: jsonEncode({'value': value}))
         .timeout(_quick);
     _ensureOk(r.statusCode, r.body);
+  }
+
+  /// Recent conversation transcript, oldest-first (matches Letta's own
+  /// ordering) — used to actually populate the chat on connect/reconnect
+  /// instead of always showing a scripted opening line regardless of what
+  /// was really said (including anything Eva said on her own via a
+  /// check-in while the app wasn't open).
+  Future<List<HistoryMessage>> history(String agentId, {int limit = 60}) async {
+    final r = await _client
+        .get(_u('/v1/agents/$agentId/messages?limit=$limit'), headers: _read)
+        .timeout(_quick);
+    _ensureOk(r.statusCode, r.body);
+    final decoded = jsonDecode(r.body);
+    final List raw = decoded is List
+        ? decoded
+        : (decoded is Map && decoded['messages'] is List ? decoded['messages'] as List : const []);
+    final out = <HistoryMessage>[];
+    for (final m in raw) {
+      if (m is! Map) continue;
+      final HistoryRole? role = switch (m['message_type']) {
+        'user_message' => HistoryRole.user,
+        'assistant_message' => HistoryRole.assistant,
+        _ => null, // system nudges, tool calls/returns, reasoning — not shown
+      };
+      if (role == null) continue;
+      final content = m['content'];
+      String text;
+      if (content is String) {
+        text = content;
+      } else if (content is List) {
+        text = content
+            .whereType<Map>()
+            .map((p) => (p['text'] as String?) ?? '')
+            .join('\n');
+      } else {
+        continue;
+      }
+      text = text.trim();
+      if (text.isEmpty) continue;
+      final dateStr = m['date'] as String?;
+      final at = (dateStr != null ? DateTime.tryParse(dateStr) : null)?.toLocal() ?? DateTime.now();
+      out.add(HistoryMessage(role: role, text: text, at: at));
+    }
+    return out;
   }
 
   Future<List<Passage>> archival(String agentId) async {

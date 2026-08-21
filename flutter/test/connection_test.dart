@@ -23,6 +23,9 @@ class FakeLetta {
   bool up;
   int messageCalls = 0;
   List<String> loadedIds = const []; // what /lmstudio/status reports as loaded
+  // What GET .../messages (history) returns — empty by default, so tests that
+  // don't care about history exercise the "no history yet" fallback opener.
+  List<Map<String, Object?>> historyMessages = const [];
   FakeLetta({this.up = true});
 
   http.Client client() => MockClient((req) async {
@@ -47,6 +50,9 @@ class FakeLetta {
                 }
               ]),
               200);
+        }
+        if (path.endsWith('/messages') && req.method == 'GET') {
+          return http.Response(jsonEncode(historyMessages), 200);
         }
         if (path.endsWith('/core-memory/blocks')) {
           return http.Response(
@@ -100,6 +106,42 @@ void main() {
       expect(c.live, isTrue);
       // memory notebook populated from the human block
       expect(c.memories.any((m) => m.text.contains('coffee')), isTrue);
+    });
+
+    test('real transcript replaces the scripted opener when history exists', () async {
+      final fake = FakeLetta(up: true)
+        ..historyMessages = [
+          {
+            'message_type': 'user_message',
+            'content': 'you there?',
+            'date': '2026-08-21T22:00:02+00:00',
+          },
+          // A check-in nudge and Eva's own reply — said while the app wasn't
+          // even open. Must show up in the transcript; the nudge itself must
+          // not (system-role messages aren't part of what was "said").
+          {
+            'message_type': 'system_message',
+            'content': '(quiet background nudge, not something Stephan said.)',
+            'date': '2026-08-21T22:11:13+00:00',
+          },
+          {
+            'message_type': 'assistant_message',
+            'content': 'Hey! Just wanted to check in.',
+            'date': '2026-08-21T22:11:19+00:00',
+          },
+        ];
+      final c = controllerFor(fake);
+
+      await c.connect();
+
+      expect(c.messages.any((m) => m.text == 'you there?' && m.from == Speaker.you), isTrue);
+      expect(
+          c.messages.any((m) => m.text == 'Hey! Just wanted to check in.' && m.from == Speaker.eva),
+          isTrue);
+      expect(c.messages.any((m) => m.text.contains('quiet background nudge')), isFalse);
+      // The scripted "Oh, it's you" opener must NOT appear — this is real
+      // history, not the no-history fallback.
+      expect(c.messages.any((m) => m.text.contains("Oh. It's you")), isFalse);
     });
   });
 

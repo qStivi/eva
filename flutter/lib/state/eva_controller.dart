@@ -187,12 +187,44 @@ class EvaController extends ChangeNotifier {
     if (!_toasts.isClosed) _toasts.add(text);
   }
 
-  String _now() {
-    final d = TimeOfDay.now();
+  String _now() => _fmtTime(DateTime.now());
+
+  String _fmtTime(DateTime dt) {
+    final d = TimeOfDay.fromDateTime(dt);
     final h = d.hourOfPeriod == 0 ? 12 : d.hourOfPeriod;
     final m = d.minute.toString().padLeft(2, '0');
     final ap = d.period == DayPeriod.am ? 'AM' : 'PM';
     return '$h:$m $ap';
+  }
+
+  /// Replaces the seeded/mock conversation with the real transcript — what
+  /// was actually said, including anything Eva said on her own (a check-in)
+  /// while the app wasn't open. Falls back to a scripted opening line only
+  /// when there's genuinely no history yet (a brand-new agent) or the fetch
+  /// itself fails — connecting must never hang or crash on this.
+  Future<void> _loadHistory(LettaApi api, String agentId) async {
+    List<HistoryMessage> history = const [];
+    try {
+      history = await api.history(agentId);
+    } catch (_) {
+      // Best-effort — an empty/failed fetch just falls through to the opener.
+    }
+    messages.clear();
+    if (history.isEmpty) {
+      messages.add(ChatMessage(
+        from: Speaker.eva,
+        text: "*looks up* …Oh. It's you. Go on, then — I'm listening.",
+        time: _now(),
+      ));
+      return;
+    }
+    for (final h in history) {
+      messages.add(ChatMessage(
+        from: h.role == HistoryRole.user ? Speaker.you : Speaker.eva,
+        text: h.text,
+        time: _fmtTime(h.at),
+      ));
+    }
   }
 
   // ---- connect / reconfigure ----
@@ -224,14 +256,7 @@ class EvaController extends ChangeNotifier {
       if (agent.modelHandle != null) {
         model = _modelForHandle(agent.modelHandle!);
       }
-      // Switch from the seeded conversation to a clean live slate.
-      messages
-        ..clear()
-        ..add(ChatMessage(
-          from: Speaker.eva,
-          text: "*looks up* …Oh. It's you. Go on, then — I'm listening.",
-          time: _now(),
-        ));
+      await _loadHistory(api, agent.id);
       await _loadMemory();
       status = ConnectionStatus.live;
     } catch (e) {
