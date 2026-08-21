@@ -4,7 +4,6 @@
     "memory_insert",
     "memory_replace",
     "conversation_search",
-    "searxng_web_search",
     "web_url_read",
     "GetDateTime",
     "todo_get_items",
@@ -27,7 +26,7 @@
     "home": "the house itself — lights, switches, warmth (climate), and reading what's going on in the rooms",
     "media": "music and video — play, pause, skip, volume on the speakers and screens",
     "house_extras": "shouting a message to the speakers, and cancelling timers",
-    "research": "a real, multi-search research pass in the background — not a single quick web_url_read, a proper dig-in with a write-up when it's done"
+    "research": "the way I search the web at all now — a real multi-search dig-in in the background, with a write-up and sources when it's done. web_url_read still works for a link you hand me directly."
   },
   "_keywords_comment": "Used by eva-web/toolset_router.py to pre-attach a group when the user's message matches (word-boundary, case-insensitive). Bias slightly toward matching — a spare tool costs little, a missing one blocks Eva.",
   "keywords": {

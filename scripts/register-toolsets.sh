@@ -45,7 +45,7 @@ echo "== applying lean core to eva =="
 python3 - "$TS" "$LETTA" "$AID" <<'PY'
 import json, sys, urllib.request
 ts = json.load(open(sys.argv[1])); letta, aid = sys.argv[2], sys.argv[3]
-core = set(ts["core"]); managed = sorted({t for g in ts["groups"].values() for t in g})
+core = set(ts["core"])
 def api(method, path):
     req = urllib.request.Request(letta + path, method=method, headers={"Content-Type": "application/json"})
     b = urllib.request.urlopen(req, timeout=15).read().decode()
@@ -56,8 +56,12 @@ added, removed = [], []
 for tn in sorted(core):
     if tn not in attached and tn in idbyname:
         api("PATCH", "/v1/agents/%s/tools/attach/%s" % (aid, idbyname[tn])); added.append(tn)
-for tn in managed:
-    if tn in attached and tn not in core and tn in idbyname:
+# Detach ANYTHING attached that isn't core — not just current group members. Core
+# is meant to be the exhaustive default set, so a tool dropped from toolsets.json
+# entirely (not moved into a group) must still get put away, not linger attached
+# forever because it's no longer "managed" by any group.
+for tn in sorted(attached):
+    if tn not in core and tn in idbyname:
         api("PATCH", "/v1/agents/%s/tools/detach/%s" % (aid, idbyname[tn])); removed.append(tn)
 print("  attached core:", added or "(already lean)")
 print("  detached groups:", removed or "(none attached)")
