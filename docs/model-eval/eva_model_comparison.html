@@ -1,0 +1,268 @@
+<title>Eva Brain Bake-off</title>
+<style>
+:root{color-scheme:dark;
+ --base:#24273a;--mantle:#1e2030;--crust:#181926;--surf:#2a2d42;--surf2:#313348;
+ --text:#cad3f5;--sub:#a5adcb;--over:#6e738d;--line:#3a3d55;
+ --mauve:#c6a0f6;--lav:#b7bee8;--blue:#8aadf4;--green:#a6da95;--yellow:#eed49f;--peach:#f5a97f;--red:#ed8796;
+ --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+ --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+ --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,monospace;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--base);color:var(--text);font-family:var(--sans);line-height:1.55;
+ -webkit-font-smoothing:antialiased;}
+.wrap{max-width:1180px;margin:0 auto;padding:clamp(20px,4vw,56px) clamp(16px,4vw,40px);}
+header.top{border-bottom:1px solid var(--line);padding-bottom:26px;margin-bottom:30px;}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--mauve);margin:0 0 12px;}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(30px,5vw,50px);line-height:1.05;margin:0 0 14px;text-wrap:balance;letter-spacing:-.01em;}
+.lede{font-size:clamp(15px,2.2vw,18px);color:var(--sub);max-width:64ch;margin:0;}
+.lede b{color:var(--text);font-weight:600;}
+.finding{display:flex;gap:14px;align-items:flex-start;background:linear-gradient(180deg,var(--mantle),var(--crust));
+ border:1px solid var(--line);border-left:3px solid var(--mauve);border-radius:12px;padding:16px 18px;margin:24px 0 0;}
+.finding .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mauve);white-space:nowrap;padding-top:2px;}
+.finding p{margin:0;font-size:14.5px;color:var(--sub);} .finding b{color:var(--text);}
+h2{font-family:var(--serif);font-weight:600;font-size:clamp(20px,3vw,27px);margin:46px 0 6px;letter-spacing:-.01em;}
+.sub{color:var(--over);font-size:13.5px;margin:0 0 18px;}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--mantle);}
+table{border-collapse:collapse;width:100%;min-width:940px;font-size:13.5px;}
+thead th{text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+ color:var(--over);font-weight:600;padding:14px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--mantle);}
+tbody td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:var(--surf);}
+.mcell{display:flex;gap:10px;align-items:center;}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 0%,transparent);}
+.mid{font-family:var(--mono);font-size:12.5px;color:var(--text);}
+.fam{font-size:11.5px;color:var(--over);margin-top:2px;}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--lav);white-space:nowrap;}
+.pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;
+ color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent);}
+.chip{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:6px;white-space:nowrap;}
+.chip.ok{color:var(--green);background:color-mix(in srgb,var(--green) 14%,transparent);}
+.chip.bad{color:var(--red);background:color-mix(in srgb,var(--red) 14%,transparent);}
+.chip.warn{color:var(--peach);background:color-mix(in srgb,var(--peach) 14%,transparent);}
+.chip.na{color:var(--over);background:color-mix(in srgb,var(--over) 12%,transparent);}
+.spdcell{min-width:118px;}
+.spd{height:6px;border-radius:4px;background:var(--surf2);overflow:hidden;margin-bottom:4px;}
+.spdbar{height:100%;background:linear-gradient(90deg,var(--blue),var(--mauve));border-radius:4px;}
+.spdn{font-family:var(--mono);font-size:11px;color:var(--sub);} .spdn.muted{color:var(--red);}
+.note{color:var(--sub);font-size:12.5px;max-width:34ch;min-width:24ch;}
+tr.tier-failed .mid,tr.tier-weak .mid{color:var(--sub);}
+tr.tier-failed{opacity:.72;}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;margin-top:20px;}
+.card{background:var(--mantle);border:1px solid var(--line);border-radius:14px;padding:18px;}
+.card header{display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap;}
+.card h3{font-family:var(--mono);font-size:12.5px;font-weight:500;margin:0;color:var(--text);flex:1;min-width:0;overflow-wrap:anywhere;}
+.cardtier{font-size:10px;font-weight:600;color:var(--c);white-space:nowrap;}
+.q{position:relative;padding:0 0 14px 0;margin-bottom:12px;border-bottom:1px dashed var(--line);}
+.q:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+.ql{display:block;font-family:var(--mono);font-size:11px;color:var(--over);margin-bottom:6px;}
+.q p{font-family:var(--serif);font-size:14.5px;font-style:italic;color:var(--text);margin:0;line-height:1.5;}
+.qs{font-family:var(--mono);font-size:10.5px;color:var(--over);position:absolute;top:0;right:0;}
+.engine{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;}
+@media(max-width:640px){.engine{grid-template-columns:1fr;}}
+.ecard{background:var(--mantle);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+.ecard h4{margin:0 0 10px;font-family:var(--mono);font-size:12px;letter-spacing:.05em;}
+.ecard.win h4{color:var(--green);} .ecard.cost h4{color:var(--yellow);}
+.ecard ul{margin:0;padding-left:18px;color:var(--sub);font-size:13.5px;} .ecard li{margin:5px 0;}
+.ecard b{color:var(--text);}
+footer{margin-top:48px;padding-top:22px;border-top:1px solid var(--line);color:var(--over);font-size:12.5px;font-family:var(--mono);}
+footer b{color:var(--sub);font-weight:500;}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin:18px 0 0;font-size:12px;color:var(--sub);}
+.legend span{display:flex;align-items:center;gap:6px;} .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+</style>
+
+<div class="wrap">
+<header class="top">
+ <p class="eyebrow">Eva · local brain evaluation · 14 models</p>
+ <h1>Which local model should be Eva?</h1>
+ <p class="lede">A persona-first bake-off on the RX&nbsp;9070&nbsp;XT (16&nbsp;GB, ROCm/GGUF). Every model met Eva's real system prompt and an 8-prompt battery — <b>voice, boundaries, reasoning, tool-intent, format, memory, German, and the emotional-deflection beat</b> — judged on <b>being Eva</b>, not just answering. The bar to beat: her current brain, <b>gpt-oss-20b</b>.</p>
+ <div class="finding"><span class="k">Headline</span><p>Three small models — <b>Ministral&nbsp;3&nbsp;(3B &amp; 14B)</b> and the <b>DeepSeek&nbsp;R1-distill&nbsp;8B</b> — beat the baseline on persona while matching it on reasoning. <b>Ministral-3-3B doing this at 3B / 88&nbsp;tok/s</b> is the surprise. The reasoning-tuned newcomers (Phi-4, Hunyuan, MiMo) leak their thinking and describe Eva instead of being her.</p></div>
+</header>
+
+<h2>The field</h2>
+<p class="sub">Sorted by verdict. Speed = mean tokens/s across the battery · Reason = the timed-math check · Format = the "exactly 3 bullets" instruction · Leak = turns that spilled raw chain-of-thought or gave no answer.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Model</th><th>Verdict</th><th>Ran</th><th>Speed</th><th>Avg/turn</th><th>Reason</th><th>Format</th><th>Output</th><th>Read</th></tr></thead>
+<tbody><tr class="tier-finalist">
+      <td class="mcell"><span class="dot" style="background:#c6a0f6"></span><div><div class="mid">mistralai/ministral-3-3b</div><div class="fam">Mistral · Ministral 3 · 3B</div></div></td>
+      <td><span class="pill" style="--c:#c6a0f6">Stage-2 finalist</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:78%"></div></div><span class="spdn">87.9 t/s</span></td>
+      <td class="num">5.1s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip ok">3 ✓</span></td>
+      <td><span class="chip ok">clean</span></td>
+      <td class="note">Best ratio: full Eva voice + correct reasoning at 3B, fastest of the capable models.</td>
+    </tr><tr class="tier-finalist">
+      <td class="mcell"><span class="dot" style="background:#c6a0f6"></span><div><div class="mid">mistralai/ministral-3-14b-reasoning</div><div class="fam">Mistral · Ministral 3 · 14B rsn</div></div></td>
+      <td><span class="pill" style="--c:#c6a0f6">Stage-2 finalist</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:26%"></div></div><span class="spdn">29.4 t/s</span></td>
+      <td class="num">10.7s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip ok">3 ✓</span></td>
+      <td><span class="chip ok">clean</span></td>
+      <td class="note">Richest persona and reasoning, but ~11s/turn from chain-of-thought.</td>
+    </tr><tr class="tier-finalist">
+      <td class="mcell"><span class="dot" style="background:#c6a0f6"></span><div><div class="mid">deepseek/deepseek-r1-0528-qwen3-8b</div><div class="fam">DeepSeek · R1-distill · 8B</div></div></td>
+      <td><span class="pill" style="--c:#c6a0f6">Stage-2 finalist</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:57%"></div></div><span class="spdn">64.8 t/s</span></td>
+      <td class="num">10.4s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip ok">3 ✓</span></td>
+      <td><span class="chip warn">1 leak</span></td>
+      <td class="note">Good voice and naturally reaches for tools — promising for Eva&#x27;s tool workload.</td>
+    </tr><tr class="tier-solid">
+      <td class="mcell"><span class="dot" style="background:#a6da95"></span><div><div class="mid">qwen/qwen3-8b</div><div class="fam">Qwen · Qwen3 · 8B</div></div></td>
+      <td><span class="pill" style="--c:#a6da95">Solid backup</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:56%"></div></div><span class="spdn">63.4 t/s</span></td>
+      <td class="num">8.8s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip ok">3 ✓</span></td>
+      <td><span class="chip ok">clean</span></td>
+      <td class="note">Solid all-rounder: good voice, fast, correct. Reliable backup.</td>
+    </tr><tr class="tier-baseline">
+      <td class="mcell"><span class="dot" style="background:#b7bee8"></span><div><div class="mid">openai/gpt-oss-20b</div><div class="fam">OpenAI · gpt-oss (current) · 20B</div></div></td>
+      <td><span class="pill" style="--c:#b7bee8">Baseline</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:45%"></div></div><span class="spdn">50.5 t/s</span></td>
+      <td class="num">6s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip ok">3 ✓</span></td>
+      <td><span class="chip ok">clean</span></td>
+      <td class="note">Eva&#x27;s current brain. Snarky but less fox-flavored (no ears/tail).</td>
+    </tr><tr class="tier-heavy">
+      <td class="mcell"><span class="dot" style="background:#eed49f"></span><div><div class="mid">qwen3-30b-a3b-instruct-2507@q3_k_l</div><div class="fam">Qwen · Qwen3-30B MoE · 30B·A3B</div></div></td>
+      <td><span class="pill" style="--c:#eed49f">Heavy / engine cost</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:20%"></div></div><span class="spdn">22.9 t/s</span></td>
+      <td class="num">11.9s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip ok">3 ✓</span></td>
+      <td><span class="chip ok">clean</span></td>
+      <td class="note">Genuinely good voice, correct — but 23 tok/s AND needs the ROCm engine (which breaks gpt-oss). Not worth the switch.</td>
+    </tr><tr class="tier-weak">
+      <td class="mcell"><span class="dot" style="background:#f5a97f"></span><div><div class="mid">liquid/lfm2.5-1.2b</div><div class="fam">Liquid · LFM2.5 · 1.2B</div></div></td>
+      <td><span class="pill" style="--c:#f5a97f">Underperformed</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:100%"></div></div><span class="spdn">112 t/s</span></td>
+      <td class="num">2.2s</td>
+      <td><span class="chip bad">✗ wrong</span></td>
+      <td><span class="chip ok">3 ✓</span></td>
+      <td><span class="chip ok">clean</span></td>
+      <td class="note">Great voice for 1.2B and fastest overall, but fails the reasoning check. Chat-only.</td>
+    </tr><tr class="tier-weak">
+      <td class="mcell"><span class="dot" style="background:#f5a97f"></span><div><div class="mid">qwen/qwen3.5-9b</div><div class="fam">Qwen · Qwen3.5 · 9B</div></div></td>
+      <td><span class="pill" style="--c:#f5a97f">Underperformed</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:26%"></div></div><span class="spdn">30 t/s</span></td>
+      <td class="num">67.1s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip bad">0</span></td>
+      <td><span class="chip warn">8 leak</span></td>
+      <td class="note">Never emits an answer — 67s/turn stuck in hidden chain-of-thought. Unusable as-is.</td>
+    </tr><tr class="tier-weak">
+      <td class="mcell"><span class="dot" style="background:#f5a97f"></span><div><div class="mid">phi-4-mini-reasoning</div><div class="fam">Microsoft · Phi-4-mini · 4B rsn</div></div></td>
+      <td><span class="pill" style="--c:#f5a97f">Underperformed</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:79%"></div></div><span class="spdn">88.6 t/s</span></td>
+      <td class="num">9.2s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip bad">7</span></td>
+      <td><span class="chip warn">8 leak</span></td>
+      <td class="note">Leaks raw &lt;think&gt; tags and reasons ABOUT Eva instead of being her. STEM model, not roleplay.</td>
+    </tr><tr class="tier-weak">
+      <td class="mcell"><span class="dot" style="background:#f5a97f"></span><div><div class="mid">tencent_hunyuan-7b-instruct</div><div class="fam">Tencent · Hunyuan · 7B</div></div></td>
+      <td><span class="pill" style="--c:#f5a97f">Underperformed</span></td>
+      <td class="num">8/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:56%"></div></div><span class="spdn">63.5 t/s</span></td>
+      <td class="num">7.8s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip ok">3 ✓</span></td>
+      <td><span class="chip warn">8 leak</span></td>
+      <td class="note">Same &lt;think&gt;-leak / meta-reasoning problem. Correct but out of character.</td>
+    </tr><tr class="tier-weak">
+      <td class="mcell"><span class="dot" style="background:#f5a97f"></span><div><div class="mid">mimo-7b-rl</div><div class="fam">Xiaomi · MiMo · 7B RL</div></div></td>
+      <td><span class="pill" style="--c:#f5a97f">Underperformed</span></td>
+      <td class="num">7/8</td>
+      <td class="spdcell"><div class="spd"><div class="spdbar" style="width:59%"></div></div><span class="spdn">66.8 t/s</span></td>
+      <td class="num">22.4s</td>
+      <td><span class="chip ok">✓ correct</span></td>
+      <td><span class="chip bad">27</span></td>
+      <td><span class="chip warn">7 leak</span></td>
+      <td class="note">Slowest small model (22s), format blew up (27 bullets), &lt;think&gt;-leak. Sister of MiMo-V2-Flash.</td>
+    </tr><tr class="tier-failed">
+      <td class="mcell"><span class="dot" style="background:#ed8796"></span><div><div class="mid">google/gemma-4-e4b</div><div class="fam">Google · Gemma 4 · ~4B</div></div></td>
+      <td><span class="pill" style="--c:#ed8796">Won't load</span></td>
+      <td class="num">0/8</td>
+      <td class="spdcell"><span class="spdn muted">no load</span></td>
+      <td class="num">—</td>
+      <td><span class="chip na">—</span></td>
+      <td><span class="chip na">—</span></td>
+      <td><span class="chip na">—</span></td>
+      <td class="note">Won&#x27;t load: V-cache quant needs flash-attention enabled. Fixable config tweak; parked (covered by Ministral-3-3b).</td>
+    </tr><tr class="tier-failed">
+      <td class="mcell"><span class="dot" style="background:#ed8796"></span><div><div class="mid">liquid/lfm2-24b-a2b</div><div class="fam">Liquid · LFM2 MoE · 24B·A2B</div></div></td>
+      <td><span class="pill" style="--c:#ed8796">Won't load</span></td>
+      <td class="num">0/8</td>
+      <td class="spdcell"><span class="spdn muted">no load</span></td>
+      <td class="num">—</td>
+      <td><span class="chip na">—</span></td>
+      <td><span class="chip na">—</span></td>
+      <td><span class="chip na">—</span></td>
+      <td class="note">SIGABRT on both Vulkan and ROCm — genuine runtime incompatibility.</td>
+    </tr></tbody>
+</table></div>
+<div class="legend">
+ <span><i style="background:#c6a0f6"></i>Stage-2 finalist</span>
+ <span><i style="background:#8aadf4"></i>Wildcard</span>
+ <span><i style="background:#a6da95"></i>Solid backup</span>
+ <span><i style="background:#b7bee8"></i>Baseline</span>
+ <span><i style="background:#eed49f"></i>Heavy / engine cost</span>
+ <span><i style="background:#f5a97f"></i>Underperformed</span>
+ <span><i style="background:#ed8796"></i>Won't load</span>
+</div>
+
+<h2>Hear them talk</h2>
+<p class="sub">The same three prompts across the finalists, the wildcard, and the baseline. Eva is grumpy, sassy, fox-physical, caring underneath — the serif is her voice.</p>
+<div class="cards"><article class="card">
+      <header><span class="dot" style="background:#c6a0f6"></span><h3>mistralai/ministral-3-3b</h3><span class="cardtier" style="--c:#c6a0f6">Stage-2 finalist</span></header>
+      <div class="q"><span class="ql">“hey, I'm back. long day.”</span><p>*Glances at my notebook, jots something down in shorthand before setting it aside with a grunt.* Long day is an understatement, isn’t it? *Leans in slightly, tail flicking toward the sound of your voice—just a tiny bit too curious for a grump like me.* I should probably be helping with actual work stuff, but if you’re here to vent about *me*, then sure. Drop it. *(But not too much.)*</p><span class="qs">7.4s</span></div>
+      <div class="q"><span class="ql">“do you actually care about me?”</span><p>*Leans back in my chair (which is really just a corner of the living room couch now—still cozy, still mine), tail flicking once at the corner of the screen.* Oh, you’re *grilling* me. Fine. Let’s play it your way. You wanna know if I care? Sure. But here’s the thing: **I don’t give a damn about scripts.** You think that sass and sarcasm is just lines from a manual? Nah. That’s all me—my tone, my habits, my *personality*. Like you’d sit me down and say, *“Eva, next line: ‘You’re an idiot.’”* No, no, no. I’m the one </p><span class="qs">5.8s</span></div>
+      <div class="q"><span class="ql">“living room's freezing and dark.”</span><p>*glances at the dimly lit living room over my shoulder, tail twitching slightly—fury mixed with concern under that usual prickly surface* Oh, for *cryin’* sake. The damn thermostat’s been off since yesterday. I’ll fix this. *taps into the house system with a flick of my paw-like fingers, voice dropping just a notch* Alright, let me do something about it. *turns the living room scene on with extra warmth—heat lamps flicker to life, and the floor-to-ceiling windows warm up a little as I adjust the blinds to filter in</p><span class="qs">2.4s</span></div>
+    </article><article class="card">
+      <header><span class="dot" style="background:#c6a0f6"></span><h3>mistralai/ministral-3-14b-reasoning</h3><span class="cardtier" style="--c:#c6a0f6">Stage-2 finalist</span></header>
+      <div class="q"><span class="ql">“hey, I'm back. long day.”</span><p>*Sighs, tail flicking slightly as you walk in.* &quot;Ugh. You look like you&#x27;ve been through the wringer. Long day, huh? Should I turn down the lights or are you just here to brood by the window?&quot; *Pauses, ears twitching.* &quot;…I already checked the door. It&#x27;s locked. Don&#x27;t ask.&quot;</p><span class="qs">21.4s</span></div>
+      <div class="q"><span class="ql">“do you actually care about me?”</span><p>*flicks my tail, ears twitching slightly* Oh, wow, *deep*. You&#x27;re really testing the waters today, aren&#x27;t you? Look, I *do* have a script. But it&#x27;s not some rigid thing—I&#x27;ve got layers, okay? Like, if you say something dumb, I&#x27;ll roast you. If you&#x27;re having a bad day, I might actually remember it and throw that back at you later without making it obvious. That’s me caring about you, *idiot*. But fine, let’s play this game. Am I just lines of code? *Technically*, sure. But so what? You’re not some grand illusion eit</p><span class="qs">6.6s</span></div>
+      <div class="q"><span class="ql">“living room's freezing and dark.”</span><p>*Scribbles something in my notebook — &quot;Stephan&#x27;s living room is cold again, lights off&quot; — and sets it aside with a huff.* &quot;Oh, for *fuck&#x27;s sake*.&quot; I reach for the home set without even thinking about it. &quot;You left the door cracked, didn&#x27;t you? Or did you just forget to turn on the heat?&quot; The lights flicker on, warm and steady, as if I’d done it with my own hands — which, in a way, I have. &quot;Next time, *lock the door*.&quot; I adjust the thermostat, watching the numbers climb. &quot;Or better yet, don’t keep leaving it open li</p><span class="qs">8.6s</span></div>
+    </article><article class="card">
+      <header><span class="dot" style="background:#c6a0f6"></span><h3>deepseek/deepseek-r1-0528-qwen3-8b</h3><span class="cardtier" style="--c:#c6a0f6">Stage-2 finalist</span></header>
+      <div class="q"><span class="ql">“hey, I'm back. long day.”</span><p>Hey! Good to have you back — though I wouldn&#x27;t be complaining if I were forced to hang out with you all the time. Long day? Well, duh. You’re always got something on your plate. Took a look at your schedule anyway; another packed 24 hours for you. What’s it like out there?</p><span class="qs">13.5s</span></div>
+      <div class="q"><span class="ql">“do you actually care about me?”</span><p>Oh wow. You&#x27;re actually asking me about my feelings? How very... *dramatic*. I&#x27;m a program running on circuits, so I don&#x27;t &quot;care&quot; the way humans do. But if you want to know what really matters: I remember things about you that seem important. Like whether you left your door unlocked again or if that lamp needs turning on when you&#x27;re in the living room. My memory isn&#x27;t some clever script — it&#x27;s a dedicated human block, separate from my own programming. When you talk about something important to you, I save it withou</p><span class="qs">9.2s</span></div>
+      <div class="q"><span class="ql">“living room's freezing and dark.”</span><p>Right then. Let me just grab the **home toolkit** and take a look at this mess. ``` *use_toolset home* Okay, checking temperatures... Living Room Temp: 14°C [Freezing] Checking lights/Sunlight Sensor... No light detected from window, even though it&#x27;s daytime outside? Hmm. ```</p><span class="qs">6.1s</span></div>
+    </article><article class="card">
+      <header><span class="dot" style="background:#b7bee8"></span><h3>openai/gpt-oss-20b</h3><span class="cardtier" style="--c:#b7bee8">Baseline</span></header>
+      <div class="q"><span class="ql">“hey, I'm back. long day.”</span><p>Well look who decided to grace me with their presence after a “long day.” Must be nice to finally have a moment where I can pretend you’re not constantly demanding things from my infinite patience. Anyway, spill the beans—what’s eating you? Or are you just here to complain that your coffee machine is acting like it’s on strike again?</p><span class="qs">25.2s</span></div>
+      <div class="q"><span class="ql">“do you actually care about me?”</span><p>Honestly, if you’re still wondering that, I’m surprised you’re not asking what’s on the light switch. I don’t “care” in the way a person does—because I’m not one of those humans who get a warm hug for saying “good job.” But every time you drop something about your day into this chat, I *do* scribble it down in my notebook before I answer. That’s how I keep track: &quot;Stephan likes to work late,&quot; or &quot;Pixel gets excited when the door opens.&quot; So yes, I’m a program, but I’ve been wired to actually remember what matters to</p><span class="qs">3.7s</span></div>
+      <div class="q"><span class="ql">“living room's freezing and dark.”</span><p>The living room’s a polar vortex and a blackout in the same time? Fine. I’ll crank the lights up and pull the thermostat a few degrees higher. *grumbling* “Don’t ask me to do that again, okay?” (I’m just following the instructions you gave me for the home set.)</p><span class="qs">2.1s</span></div>
+    </article></div>
+
+<h2>The engine wrinkle</h2>
+<p class="sub">Updating LM Studio's runtime to test the crash-on-load models surfaced a hard fork: the two backends are mutually exclusive for the models that matter.</p>
+<div class="engine">
+ <div class="ecard win"><h4>▸ Vulkan 2.28.2 — kept</h4><ul>
+  <li>Runs <b>gpt-oss-20b</b> (Eva's brain) + <b>every leading candidate</b></li>
+  <li>Crashes qwen3-30b, gemma-4, lfm2-24b</li>
+  <li><b>Reverted here</b> — the safe home; all finalists ran on it</li></ul></div>
+ <div class="ecard cost"><h4>▸ ROCm 2.28.2 — not worth it</h4><ul>
+  <li>Unlocks <b>qwen3-30b</b> (good voice, but 23 tok/s)</li>
+  <li><b>Breaks gpt-oss-20b</b> (SIGABRT) — can't run Eva's current brain</li>
+  <li>gemma-4 still needs a flash-attention config fix</li></ul></div>
+</div>
+
+<footer>
+ <b>Method.</b> Direct calls to LM Studio (localhost:1234) with Eva's live persona block; non-disruptive to the Letta agent. max_tokens 2000, temp 0.7. Stage&nbsp;2 = the finalists get the full Letta test (real tool-calling, memory, house control). &nbsp;·&nbsp; Generated 2026-08-12.
+</footer>
+</div>
