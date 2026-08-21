@@ -11,6 +11,7 @@ import 'api/letta_api.dart';
 import 'config/eva_settings.dart';
 import 'eva_theme.dart';
 import 'responsive_home.dart';
+import 'services/push_service.dart';
 import 'state/eva_controller.dart';
 
 Future<void> main() async {
@@ -33,6 +34,10 @@ Future<void> main() async {
   );
   // Connect in the background — the UI shows "connecting" then live/mock.
   controller.connect();
+  // Same: registers for push in the background, no-op off Android and never
+  // blocks first paint (a missing distributor or dead runner just means no
+  // push this session, not a startup failure).
+  PushService.instance.init(settings);
 
   runApp(EvaApp(controller: controller));
 }

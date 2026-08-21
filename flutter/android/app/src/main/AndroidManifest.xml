@@ -2,6 +2,10 @@
     <!-- Release builds need this explicitly: Flutter only adds INTERNET to the
          debug/profile manifests, so a release APK otherwise can't reach Letta. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Runtime-requested (Android 13+) for the job-completion notifications
+         shown via flutter_local_notifications when a UnifiedPush message
+         arrives — see lib/services/push_service.dart. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Eva"
         android:name="${applicationName}"
