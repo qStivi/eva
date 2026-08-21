@@ -39,11 +39,12 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_markdown_plus: ^1.0.7
   # Background push for job-completion notifications (research_task, later
-  # others). Self-hosted only: our own ntfy.qstivi.com is the UnifiedPush
-  # distributor — no Firebase/Google push. Android-only in practice; both are
+  # others), via Firebase Cloud Messaging — no extra app, works like every
+  # other Android app's notifications. Android-only in practice; both are
   # no-ops on desktop/web (see lib/services/push_service.dart).
-  unifiedpush: ^6.2.0
   flutter_local_notifications: ^19.4.2
+  firebase_core: ^4.13.0
+  firebase_messaging: ^16.5.0
 
 dev_dependencies:
   flutter_test:

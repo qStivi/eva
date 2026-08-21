@@ -1,30 +1,31 @@
 // PushService — background push notifications for job completions (research
-// jobs, later other async work) via UnifiedPush. Android-only: the desktop
-// and web builds just skip initialization silently.
+// jobs, later other async work) via Firebase Cloud Messaging. Android-only:
+// the desktop and web builds just skip initialization silently.
 //
-// Architecture: our self-hosted ntfy (ntfy.qstivi.com) doubles as the
-// UnifiedPush *distributor* — install the ntfy Android app once, log it into
-// ntfy.qstivi.com, and it registers a fresh per-app endpoint URL with our own
-// server (no Google/Firebase, no external push service). This app is the
-// UnifiedPush *application*: it asks whatever distributor is installed for an
-// endpoint, then hands that endpoint to eva-task-runner (via the eva.qstivi.com
-// tunnel, Access-gated the same way chat already is) so it knows where to push
-// "your research job finished" notifications. See eva-task-runner/runner.py's
-// /push/register.
+// FCM was chosen over a self-hosted UnifiedPush setup because it needs no
+// extra app installed as a "distributor" — it's the same native channel every
+// other Android app's notifications ride on. Trade-off: pushes transit
+// Google's infrastructure rather than our own ntfy server, and it needs a
+// (free) Firebase project — see android/app/google-services.json.
+//
+// When the app is backgrounded/killed, Android shows the notification itself
+// (we send a "notification" payload, not data-only) — no code here runs for
+// that case. When the app is in the foreground, FCM does NOT auto-display,
+// so onMessage below shows it via flutter_local_notifications instead.
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
-import 'package:unifiedpush/unifiedpush.dart';
 
 import '../config/eva_settings.dart';
 
 /// Fixed base for reaching the runner — it's loopback-only on the host, only
 /// reachable at all via the same public tunnel + Access gate as chat.
 const String _kRunnerBase = 'https://eva.qstivi.com';
-const String _kInstance = 'eva-jobs';
 
 class PushService {
   PushService._();
@@ -35,10 +36,11 @@ class PushService {
   EvaSettings? _settings;
   bool _localNotifsReady = false;
 
-  /// Registers UnifiedPush callbacks and asks for a distributor. Safe to call
-  /// on any platform — it's a no-op off Android. Best-effort throughout: a
-  /// user who hasn't installed a distributor (ntfy app) yet, or whose access
-  /// token isn't set, just doesn't get push — chat still works either way.
+  /// Initializes Firebase, requests notification permission, and registers
+  /// the device's FCM token with eva-task-runner. Safe to call on any
+  /// platform — it's a no-op off Android. Best-effort throughout: a missing
+  /// google-services.json, a dead runner, or a denied permission just means
+  /// no push this session, not a startup failure.
   Future<void> init(EvaSettings settings) async {
     _settings = settings;
     if (kIsWeb || !Platform.isAndroid) return;
@@ -46,19 +48,15 @@ class PushService {
     await _initLocalNotifications();
 
     try {
-      await UnifiedPush.initialize(
-        onNewEndpoint: _onNewEndpoint,
-        onRegistrationFailed: _onRegistrationFailed,
-        onUnregistered: _onUnregistered,
-        onMessage: _onMessage,
-      );
-      final ok = await UnifiedPush.tryUseCurrentOrDefaultDistributor();
-      if (ok) {
-        await UnifiedPush.register(instance: _kInstance);
-      }
-      // If no distributor is installed/selected, we just stay unregistered —
-      // no crash, no nag. The user can install the ntfy app whenever they want
-      // push and re-open Eva to pick it up (there's no "retry" trigger yet).
+      await Firebase.initializeApp();
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission();
+
+      final token = await messaging.getToken();
+      if (token != null) _postToRunner('/push/register', token);
+      messaging.onTokenRefresh.listen((t) => _postToRunner('/push/register', t));
+
+      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
     } catch (e) {
       debugPrint('PushService: init failed (no push this session): $e');
     }
@@ -76,28 +74,13 @@ class PushService {
     _localNotifsReady = true;
   }
 
-  void _onNewEndpoint(PushEndpoint endpoint, String instance) {
-    _postToRunner('/push/register', endpoint.url);
-  }
-
-  void _onRegistrationFailed(FailedReason reason, String instance) {
-    debugPrint('PushService: registration failed ($reason) for $instance');
-  }
-
-  void _onUnregistered(String instance) {
-    // We don't track the last endpoint URL client-side, so there's nothing to
-    // tell the runner to drop here — a stale registration just fails silently
-    // next time a push goes out, which eva-task-runner already logs and skips.
-  }
-
-  Future<void> _onMessage(PushMessage message, String instance) async {
+  Future<void> _onForegroundMessage(RemoteMessage message) async {
     if (!_localNotifsReady) return;
-    final body = message.decrypted
-        ? utf8.decode(message.content, allowMalformed: true)
-        : '(could not decrypt push message)';
+    final title = message.notification?.title ?? 'Eva';
+    final body = message.notification?.body ?? jsonEncode(message.data);
     await _notifications.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      'Eva',
+      title,
       body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -111,7 +94,7 @@ class PushService {
     );
   }
 
-  Future<void> _postToRunner(String path, String endpointUrl) async {
+  Future<void> _postToRunner(String path, String fcmToken) async {
     final settings = _settings;
     if (settings == null) return;
     try {
@@ -121,7 +104,7 @@ class PushService {
           'Content-Type': 'application/json',
           ...settings.accessHeaders,
         },
-        body: jsonEncode({'endpoint': endpointUrl}),
+        body: jsonEncode({'token': fcmToken}),
       );
     } catch (e) {
       debugPrint('PushService: could not reach runner ($path): $e');

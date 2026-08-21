@@ -14,22 +14,19 @@ its HITL approval gate) plugs into the same EXECUTORS registry without
 changing anything in this file except the state machine gaining
 "pending_approval".
 
-Loopback-only by design (127.0.0.1) — never put this on the LAN. Stdlib only,
-matching eva-web/toolset_router.py's posture. Config via environment (see
+Loopback-only by design (127.0.0.1) — never put this on the LAN. Stdlib only
+(plus `cryptography`, already on this host, for fcm.py's JWT signing), matching
+eva-web/toolset_router.py's posture. Config via environment (see
 ~/.config/eva-task-runner/eva-task-runner.env):
-  EVA_RUNNER_PORT    default 8286
-  LETTA_HOST         default http://localhost:8283
-  EVA_AGENT_ID       Letta agent id results get injected into
-  NTFY_URL           optional; a fixed self-hosted ntfy topic to also push to,
-                     e.g. https://ntfy.qstivi.com/eva-jobs-xxxx. The Flutter
-                     app's own UnifiedPush endpoints (registered live via
-                     POST /push/register) are pushed to regardless of this.
-  NTFY_TOKEN         optional; ntfy access token sent as a Bearer header on
-                     every push (our ntfy denies anonymous access; the same
-                     eva-runner user is granted both NTFY_URL's topic and the
-                     "up*" wildcard the UnifiedPush endpoints live under)
-  RETENTION_DAYS     default 30; finished (done/failed) jobs older than this
-                     get pruned on startup and every 6h thereafter
+  EVA_RUNNER_PORT            default 8286
+  LETTA_HOST                 default http://localhost:8283
+  EVA_AGENT_ID               Letta agent id results get injected into
+  FCM_SERVICE_ACCOUNT_FILE   path to the Firebase service-account JSON used to
+                             push job-completion notifications to the Flutter
+                             app (see fcm.py). If unset/missing, push is a
+                             no-op — chat and job execution work regardless.
+  RETENTION_DAYS             default 30; finished (done/failed) jobs older
+                             than this get pruned on startup and every 6h after
 """
 import json
 import os
@@ -38,33 +35,18 @@ import sys
 import threading
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import fcm  # noqa: E402
 from executors import EXECUTORS  # noqa: E402
 
 PORT = int(os.environ.get("EVA_RUNNER_PORT", "8286"))
 HOST = "127.0.0.1"  # loopback only, always — see module docstring
 LETTA_HOST = os.environ.get("LETTA_HOST", "http://localhost:8283").rstrip("/")
 AGENT_ID = os.environ.get("EVA_AGENT_ID", "")
-NTFY_URL = os.environ.get("NTFY_URL", "")
-NTFY_TOKEN = os.environ.get("NTFY_TOKEN", "")
-# Push targets (NTFY_URL and anything registered via /push/register) must
-# resolve to our own ntfy host — the runner holds a real Bearer token and
-# will send it to whatever URL is on this list, so an unpinned host here
-# would be an SSRF + credential-leak path straight out of client input.
-PUSH_HOST = os.environ.get("NTFY_HOST", "ntfy.qstivi.com")
-
-
-def _is_trusted_push_url(url: str) -> bool:
-    try:
-        p = urllib.parse.urlsplit(url)
-    except ValueError:
-        return False
-    return p.scheme == "https" and p.hostname == PUSH_HOST
 RETENTION_DAYS = float(os.environ.get("RETENTION_DAYS", "30"))
 PRUNE_INTERVAL_S = 6 * 3600
 
@@ -93,33 +75,35 @@ def init_db():
                 updated_at REAL NOT NULL
             )
         """)
-        # UnifiedPush endpoints registered by the Flutter app (one row per
-        # device/install — the ntfy-app-as-distributor mints a fresh, unguessable
-        # per-app URL on our own ntfy server, so no shared topic/token needed here).
+        # FCM device tokens registered by the Flutter app (one row per
+        # device/install; opaque strings from Firebase, not URLs — the runner
+        # never sends anything directly to client-supplied addresses, only to
+        # Google's fixed FCM endpoint with the token as a payload field, so
+        # there's no SSRF surface here the way a client-chosen URL would be).
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS push_endpoints (
-                endpoint TEXT PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS fcm_tokens (
+                token TEXT PRIMARY KEY,
                 added_at REAL NOT NULL
             )
         """)
 
 
-def add_push_endpoint(endpoint: str):
+def add_fcm_token(token: str):
     with _db_lock, _db() as conn:
         conn.execute(
-            "INSERT INTO push_endpoints (endpoint, added_at) VALUES (?, ?) "
-            "ON CONFLICT(endpoint) DO NOTHING", (endpoint, time.time()))
+            "INSERT INTO fcm_tokens (token, added_at) VALUES (?, ?) "
+            "ON CONFLICT(token) DO NOTHING", (token, time.time()))
 
 
-def remove_push_endpoint(endpoint: str):
+def remove_fcm_token(token: str):
     with _db_lock, _db() as conn:
-        conn.execute("DELETE FROM push_endpoints WHERE endpoint = ?", (endpoint,))
+        conn.execute("DELETE FROM fcm_tokens WHERE token = ?", (token,))
 
 
-def list_push_endpoints():
+def list_fcm_tokens():
     with _db_lock, _db() as conn:
-        rows = conn.execute("SELECT endpoint FROM push_endpoints").fetchall()
-    return [r["endpoint"] for r in rows]
+        rows = conn.execute("SELECT token FROM fcm_tokens").fetchall()
+    return [r["token"] for r in rows]
 
 
 def create_job(kind: str, spec: dict) -> str:
@@ -180,9 +164,10 @@ def set_state(job_id: str, state: str, result: dict = None, error: str = None):
 
 
 def _report(job_id: str):
-    """Best-effort: inject the result into Eva's conversation, fire an ntfy push.
-    Runs after every terminal state (done or failed) — a failed job still gets a
-    system-role note so Eva can mention it went wrong instead of going silent."""
+    """Best-effort: inject the result into Eva's conversation, push to any
+    registered phones. Runs after every terminal state (done or failed) — a
+    failed job still gets a system-role note so Eva can mention it went wrong
+    instead of going silent."""
     job = get_job(job_id)
     if not job:
         return
@@ -194,7 +179,7 @@ def _report(job_id: str):
     try:
         _notify(job, text)
     except Exception as e:  # noqa: BLE001
-        sys.stderr.write("eva-task-runner: ntfy failed: %s\n" % e)
+        sys.stderr.write("eva-task-runner: push failed: %s\n" % e)
 
 
 def _format_report(job: dict) -> str:
@@ -227,42 +212,20 @@ def _inject(text: str):
         pass
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    """Used for outbound pushes only — a redirect off PUSH_HOST must not be
-    silently followed with our Bearer token still attached."""
-    def redirect_request(self, *a, **k):
-        return None
-
-
 def _notify(job: dict, text: str):
-    """Push via our self-hosted ntfy (ntfy.qstivi.com, behind the eva Cloudflare
-    tunnel) — fans out to the fixed NTFY_URL topic (if set) plus every UnifiedPush
-    endpoint the Flutter app has registered. Each target is best-effort and
-    independent: a stale/revoked endpoint just gets logged and skipped, never
-    blocks the others or the job's own completion."""
+    """Push via FCM to every device the Flutter app has registered. Each
+    target is best-effort and independent: a stale/revoked token just gets
+    logged and skipped (fcm.py doesn't try to prune it — Firebase will report
+    it invalid on send, worth revisiting if that gets noisy), never blocks
+    the others or the job's own completion."""
+    if not fcm.available():
+        return
     title = "Eva finished: " + job["kind"]
-    targets = list_push_endpoints()
-    if NTFY_URL:
-        targets = [NTFY_URL] + targets
-    # No-redirect opener: a 3xx off our ntfy host must not carry the Bearer
-    # token anywhere else. Registered endpoints are already host-pinned at
-    # /push/register time, but this stays enforced here too in case NTFY_URL
-    # is ever hand-set wrong, or ntfy itself is compromised/misconfigured.
-    opener = urllib.request.build_opener(_NoRedirect)
-    for url in targets:
-        if not _is_trusted_push_url(url):
-            sys.stderr.write("eva-task-runner: refusing to push to untrusted URL %s\n" % url)
-            continue
-        headers = {"Title": title}
-        if NTFY_TOKEN:
-            headers["Authorization"] = "Bearer " + NTFY_TOKEN
-        req = urllib.request.Request(url, data=text[:400].encode(), method="POST",
-                                     headers=headers)
+    for token in list_fcm_tokens():
         try:
-            with opener.open(req, timeout=10):
-                pass
+            fcm.send(token, title, text)
         except Exception as e:  # noqa: BLE001
-            sys.stderr.write("eva-task-runner: ntfy push to %s failed: %s\n" % (url, e))
+            sys.stderr.write("eva-task-runner: fcm push failed: %s\n" % e)
 
 
 def _run_job(job_id: str, kind: str, spec: dict):
@@ -310,24 +273,24 @@ class Handler(BaseHTTPRequestHandler):
         self._json(201, {"job_id": job_id, "state": "pending"})
 
     def _handle_push_registration(self):
-        """The Flutter app's UnifiedPush endpoint, registered/dropped as it
-        (re)subscribes with its distributor. Reached remotely via the eva
-        Cloudflare tunnel's /push/* route (Access-gated, same as the rest of
-        eva.qstivi.com) — this process itself stays loopback-only."""
+        """The Flutter app's FCM device token, registered/dropped as it
+        (re)registers with Firebase. Reached remotely via the eva Cloudflare
+        tunnel's /push/* route (Access-gated, same as the rest of
+        eva.qstivi.com) — this process itself stays loopback-only. Just an
+        opaque string, stored as-is — no URL/SSRF surface to validate against,
+        since the runner only ever talks to Google's fixed FCM endpoint."""
         try:
             length = int(self.headers.get("Content-Length", 0))
             payload = json.loads(self.rfile.read(length) or b"{}")
-            endpoint = (payload.get("endpoint") or "").strip()
+            token = (payload.get("token") or "").strip()
         except (ValueError, json.JSONDecodeError):
             return self._json(400, {"error": "bad request body"})
-        if not endpoint:
-            return self._json(400, {"error": "missing 'endpoint'"})
+        if not token:
+            return self._json(400, {"error": "missing 'token'"})
         if self.path == "/push/register":
-            if not _is_trusted_push_url(endpoint):
-                return self._json(400, {"error": "endpoint must be an https URL on " + PUSH_HOST})
-            add_push_endpoint(endpoint)
+            add_fcm_token(token)
         else:
-            remove_push_endpoint(endpoint)
+            remove_fcm_token(token)
         self._json(200, {"ok": True})
 
     def do_GET(self):
