@@ -20,12 +20,14 @@
       "HassMediaSearchAndPlay", "HassSetVolume", "HassSetVolumeRelative",
       "HassMediaPlayerMute", "HassMediaPlayerUnmute"
     ],
-    "house_extras": ["HassBroadcast", "HassCancelAllTimers"]
+    "house_extras": ["HassBroadcast", "HassCancelAllTimers"],
+    "research": ["research_task", "check_task"]
   },
   "index": {
     "home": "the house itself — lights, switches, warmth (climate), and reading what's going on in the rooms",
     "media": "music and video — play, pause, skip, volume on the speakers and screens",
-    "house_extras": "shouting a message to the speakers, and cancelling timers"
+    "house_extras": "shouting a message to the speakers, and cancelling timers",
+    "research": "a real, multi-search research pass in the background — not a single quick web_url_read, a proper dig-in with a write-up when it's done"
   },
   "_keywords_comment": "Used by eva-web/toolset_router.py to pre-attach a group when the user's message matches (word-boundary, case-insensitive). Bias slightly toward matching — a spare tool costs little, a missing one blocks Eva.",
   "keywords": {
@@ -46,6 +48,10 @@
     "house_extras": [
       "broadcast", "announce", "announcement", "intercom", "timer", "timers",
       "cancel timer", "cancel all timers"
+    ],
+    "research": [
+      "look up", "look into", "research", "find out about", "find out more",
+      "what's the latest on", "dig into", "read up on", "investigate"
     ]
   }
 }
