@@ -10,7 +10,7 @@ import '../state/eva_controller.dart';
 import '../widgets/bits.dart';
 
 // Interval options offered for scheduled check-ins, in minutes.
-const List<int> _kCheckinIntervals = [60, 120, 240, 480, 720, 1440];
+const List<int> _kCheckinIntervals = [60, 120, 240, 480, 720, 1080, 1440];
 
 String _intervalLabel(int minutes) {
   if (minutes % 1440 == 0) return '${minutes ~/ 1440}d';
