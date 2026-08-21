@@ -7,41 +7,49 @@ searxng-mcp bridge — that bridge exists only because LM Studio's flatpak sandb
 can't reach loopback the normal way (see lmstudio-searxng-web-search memory);
 this runner is a plain host process with no such restriction.
 
-Synthesis/stop-condition calls go to the local LM Studio server (127.0.0.1:1234,
-OpenAI-compatible) using the same key eva-lmstudio-status reads from
-~/.config/letta/letta.env. Known open question (same class as the sleeptime
-consolidator's VRAM problem): this runs on the same GPU as Eva's foreground chat
-model, so a research job competing with an active chat could contend for VRAM.
-Not solved here — RESEARCH_LM_MODEL is env-overridable so this can be pointed at
-a cloud model later without changing the loop.
+Synthesis/stop-condition calls go to a cloud tier (Mistral, OpenAI-compatible
+API) rather than the local LM Studio model — deliberately, so a research job
+never contends with Eva's foreground chat model for GPU/VRAM (the same class of
+problem the sleeptime consolidator hit). The API key isn't duplicated into a new
+env file: it's pulled live from Letta's own provider store (/v1/providers/,
+loopback-only, same trust boundary Letta itself already uses) each time the
+in-process cache is empty, and never written to disk here.
 """
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
 SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://127.0.0.1:8088").rstrip("/")
-LMSTUDIO_URL = os.environ.get("LMSTUDIO_URL", "http://127.0.0.1:1234").rstrip("/")
-LMSTUDIO_ENV = os.path.expanduser("~/.config/letta/letta.env")
-# Whatever's loaded for chat by default; override once VRAM contention is worked out.
-LM_MODEL = os.environ.get("RESEARCH_LM_MODEL", "openai/gpt-oss-20b")
+LETTA_HOST = os.environ.get("LETTA_HOST", "http://localhost:8283").rstrip("/")
+MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
+CLOUD_MODEL = os.environ.get("RESEARCH_CLOUD_MODEL", "mistral-medium-latest")
+COST_LOG = os.path.expanduser("~/.config/eva-web/cost_log.jsonl")  # same log model_router uses
+# $/MTok, matching model_router's "mid" tier pricing for this same model.
+PRICE_IN, PRICE_OUT = 1.50, 7.50
 
 MAX_RESULTS_PER_QUERY = 5
 DEFAULT_MAX_ITERATIONS = 4
 
+_key_cache = {"key": None, "ts": 0}
 
-def _lmstudio_key() -> str:
-    try:
-        with open(LMSTUDIO_ENV) as f:
-            for line in f:
-                m = re.match(r"\s*OPENAI_API_KEY=(.*)", line)
-                if m:
-                    return m.group(1).strip()
-    except OSError:
-        pass
-    return ""
+
+def _mistral_key() -> str:
+    """Fetch the Mistral BYOK key from Letta's own provider store. Cached in
+    memory for an hour per process — this executor may run several calls per
+    job, no need to hit Letta again for each one."""
+    if _key_cache["key"] and time.time() - _key_cache["ts"] < 3600:
+        return _key_cache["key"]
+    with urllib.request.urlopen(LETTA_HOST + "/v1/providers/", timeout=10) as r:
+        providers = json.loads(r.read().decode())
+    for p in providers:
+        if p.get("name") == "mistral" and p.get("api_key_enc"):
+            _key_cache.update(key=p["api_key_enc"], ts=time.time())
+            return p["api_key_enc"]
+    raise RuntimeError("no 'mistral' provider with a key configured in Letta")
 
 
 def searxng_search(query: str, timeout: int = 15) -> list:
@@ -61,21 +69,38 @@ def searxng_search(query: str, timeout: int = 15) -> list:
 
 
 def _llm_call(system: str, user: str, timeout: int = 90) -> str:
-    """One chat-completion call to the local LM Studio server. Raises on failure —
+    """One chat-completion call to the cloud tier (Mistral). Raises on failure —
     callers decide how to degrade (the research loop treats a synthesis failure as
     a hard stop, not a silent skip, since the whole job's output depends on it)."""
     body = json.dumps({
-        "model": LM_MODEL,
+        "model": CLOUD_MODEL,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "temperature": 0.3,
     }).encode()
     req = urllib.request.Request(
-        LMSTUDIO_URL + "/v1/chat/completions", data=body, method="POST",
+        MISTRAL_URL, data=body, method="POST",
         headers={"Content-Type": "application/json",
-                 "Authorization": "Bearer " + _lmstudio_key()})
+                 "Authorization": "Bearer " + _mistral_key()})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.loads(r.read().decode())
+    _log_cost(data.get("usage") or {})
     return data["choices"][0]["message"]["content"]
+
+
+def _log_cost(usage: dict):
+    """Append one line to the same cost log model_router.py writes, so research
+    spend shows up alongside chat spend. Best-effort; never raises."""
+    try:
+        prompt = usage.get("prompt_tokens", 0) or 0
+        out = usage.get("completion_tokens", 0) or 0
+        cost = (prompt * PRICE_IN + out * PRICE_OUT) / 1e6
+        line = {"ts": time.time(), "tier": "research", "model": CLOUD_MODEL,
+                "cost_usd": round(cost, 6), "usage": usage}
+        os.makedirs(os.path.dirname(COST_LOG), exist_ok=True)
+        with open(COST_LOG, "a") as f:
+            f.write(json.dumps(line) + "\n")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _extract_json(text: str) -> dict:
