@@ -34,6 +34,10 @@ Future<void> main() async {
   );
   // Connect in the background — the UI shows "connecting" then live/mock.
   controller.connect();
+  // A push arriving while the app is already open (foreground) doesn't
+  // otherwise touch the transcript at all — wire it to pull in whatever just
+  // got said (see EvaController.refreshMessages's doc for the full picture).
+  PushService.instance.onForegroundPush = controller.refreshMessages;
   // Same: registers for push in the background, no-op off Android and never
   // blocks first paint (a missing distributor or dead runner just means no
   // push this session, not a startup failure).
@@ -52,11 +56,28 @@ class EvaApp extends StatefulWidget {
   State<EvaApp> createState() => _EvaAppState();
 }
 
-class _EvaAppState extends State<EvaApp> {
+class _EvaAppState extends State<EvaApp> with WidgetsBindingObserver {
   late final EvaController _controller = widget.controller ?? EvaController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Covers a backgrounded app resuming — a tapped notification, or just
+    // switching back — where refreshMessages's foreground-push callback
+    // never fires because the app wasn't running to receive it live.
+    if (state == AppLifecycleState.resumed) {
+      _controller.refreshMessages();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }

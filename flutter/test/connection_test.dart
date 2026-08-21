@@ -143,6 +143,69 @@ void main() {
       // history, not the no-history fallback.
       expect(c.messages.any((m) => m.text.contains("Oh. It's you")), isFalse);
     });
+
+    test('refreshMessages picks up something said outside an open turn', () async {
+      final fake = FakeLetta(up: true);
+      final c = controllerFor(fake);
+      await c.connect();
+      expect(c.messages.any((m) => m.text.contains('surprise check-in')), isFalse);
+
+      // Something arrives in the background — a check-in reply, say — with no
+      // send() call involved at all (matches how a real push notification's
+      // callback, or an app resume, triggers this: purely from the outside).
+      fake.historyMessages = [
+        {
+          'message_type': 'assistant_message',
+          'content': 'surprise check-in reply',
+          'date': '2026-08-21T23:00:00+00:00',
+        },
+      ];
+
+      await c.refreshMessages();
+
+      expect(c.messages.any((m) => m.text == 'surprise check-in reply'), isTrue);
+    });
+
+    test('refreshMessages is a no-op mid-send (never yanks the transcript)', () async {
+      final gate = Completer<http.Response>();
+      final settings = EvaSettings(serverUrl: 'http://t2.local:8283', agentId: _agentId);
+      final api = LettaApi(
+        settings.serverUrl,
+        client: MockClient((req) async {
+          final p = req.url.path;
+          if (p == '/v1/health/') return http.Response('{"status":"ok"}', 200);
+          if (p == '/v1/agents/') {
+            return http.Response(
+                jsonEncode([
+                  {'id': _agentId, 'name': 'eva', 'llm_config': {'handle': 'h'}}
+                ]),
+                200);
+          }
+          if (p.endsWith('/core-memory/blocks')) {
+            return http.Response(jsonEncode([{'label': 'human', 'value': 'x'}]), 200);
+          }
+          if (p.contains('/archival-memory')) return http.Response('[]', 200);
+          if (p.endsWith('/messages') && req.method == 'GET') return http.Response('[]', 200);
+          if (p == '/api/chat') return gate.future; // hangs — a send is "in flight"
+          return http.Response('{}', 200);
+        }),
+      );
+      final c = EvaController(api: api, settings: settings);
+      addTearDown(c.dispose);
+      await c.connect();
+
+      c.draft.text = 'mid-flight';
+      c.send();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(c.busy, isTrue);
+
+      // Should return immediately without touching anything mid-send.
+      await c.refreshMessages();
+      expect(c.busy, isTrue);
+
+      gate.complete(http.Response(jsonEncode({'reply': 'ok', 'tools': []}), 200));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
   });
 
   group('disconnection mid-session', () {

@@ -269,6 +269,25 @@ class EvaController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Re-fetches the real transcript without a full reconnect — for a push
+  /// notification arriving while the app is already open, or the app resuming
+  /// from the background (a tapped notification, or just switching back).
+  /// Without this, anything said outside an open chat turn (a check-in, a
+  /// finished research job) is invisible until you force-quit and reopen.
+  Future<void> refreshMessages() async {
+    final api = _api;
+    final agentId = _agentId;
+    if (api == null || agentId == null || status != ConnectionStatus.live) return;
+    if (busy) return; // never yank the transcript out from under an in-flight turn
+    try {
+      await _loadHistory(api, agentId);
+      notifyListeners();
+    } catch (_) {
+      // Best-effort — a failed refresh just means the old transcript stays
+      // stable rather than never trying again; the heartbeat/next open retries.
+    }
+  }
+
   /// Point at a different server URL (Settings) and reconnect. Optionally updates
   /// the Cloudflare Access service-token pair used for public-tunnel access, and
   /// eva-web's own Basic-auth credentials (used for every chat send, LAN or tunnel).

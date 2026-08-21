@@ -78,6 +78,14 @@ class PushService {
       FlutterLocalNotificationsPlugin();
   EvaSettings? _settings;
 
+  /// Called whenever a push arrives while the app is in the foreground —
+  /// wired by main.dart to EvaController.refreshMessages() so the transcript
+  /// actually picks up what just arrived (a check-in reply, a job result)
+  /// instead of only showing it after a force-quit and reopen. Background/
+  /// killed-state pushes don't need this: connect()'s own history load on
+  /// the next real app start already gets it right.
+  void Function()? onForegroundPush;
+
   /// Initializes Firebase, requests notification permission, registers the
   /// background handler, and registers the device's FCM token with
   /// eva-task-runner. Safe to call on any platform — it's a no-op off
@@ -101,9 +109,10 @@ class PushService {
       if (token != null) _postToRunner('/push/register', token);
       messaging.onTokenRefresh.listen((t) => _postToRunner('/push/register', t));
 
-      FirebaseMessaging.onMessage.listen(
-        (message) => _showJobNotification(_notifications, message.data),
-      );
+      FirebaseMessaging.onMessage.listen((message) {
+        _showJobNotification(_notifications, message.data);
+        onForegroundPush?.call();
+      });
     } catch (e) {
       debugPrint('PushService: init failed (no push this session): $e');
     }
