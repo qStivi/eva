@@ -43,11 +43,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onChange() {
-    // Keep the latest turn in view as messages arrive / reveal.
+    // Keep the latest turn in view as messages arrive / reveal. The list is
+    // reverse:true now, so "newest" is scroll offset 0, not maxScrollExtent.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
         _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
+          0,
           duration: EvaMotion.base,
           curve: EvaMotion.easeOut,
         );
@@ -104,37 +105,35 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _messageList() {
     final messages = c.messages;
-    // Build the turns, then the live thinking/typing turn, interleaved with
-    // separators — the same content the old ListView produced.
-    final turns = <Widget>[
-      for (var i = 0; i < messages.length; i++) _turn(messages[i], i),
-      if (c.busy) _liveTurn(messages),
-    ];
-    final children = <Widget>[];
-    for (var i = 0; i < turns.length; i++) {
-      if (i > 0) children.add(const SizedBox(height: EvaSpace.s3));
-      children.add(turns[i]);
-    }
+    final hasLive = c.busy;
+    final itemCount = messages.length + (hasLive ? 1 : 0);
 
-    // Bottom-anchored: content sits above the composer and grows upward, so a
-    // short conversation has no top dead-space. minHeight pins it to the bottom;
-    // a long conversation overflows and scrolls as before.
-    const padding = EdgeInsets.fromLTRB(16, 8, 16, 16);
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        controller: _scroll,
-        padding: padding,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: constraints.maxHeight - padding.vertical,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: children,
-          ),
-        ),
-      ),
+    // reverse:true does two things for free, replacing what the old
+    // SingleChildScrollView(Column) + LayoutBuilder/ConstrainedBox hack was
+    // trying to hand-roll: (1) lazy building — with real history now up to
+    // ~60 messages (see _loadHistory), eagerly building every bubble into a
+    // Column was the actual cause of the scroll jank; ListView only builds
+    // what's near the viewport. (2) bottom-anchoring for a short conversation
+    // (empty space stays at the top, content sits at the bottom) comes from
+    // the reversed axis itself, no minHeight math needed — which also
+    // removes the negative-minHeight assertion that math could throw when
+    // the keyboard opens and shrinks the available height.
+    return ListView.separated(
+      controller: _scroll,
+      reverse: true,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      itemCount: itemCount,
+      separatorBuilder: (context, _) => const SizedBox(height: EvaSpace.s3),
+      itemBuilder: (context, reversedIndex) {
+        // reverse:true wants index 0 = newest (rendered at the visual
+        // bottom), so translate back to chronological order for _turn/
+        // _liveTurn, which already index into c.messages that way.
+        final chronoIndex = itemCount - 1 - reversedIndex;
+        if (hasLive && chronoIndex == messages.length) {
+          return _liveTurn(messages);
+        }
+        return _turn(messages[chronoIndex], chronoIndex);
+      },
     );
   }
 

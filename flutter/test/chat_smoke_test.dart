@@ -15,6 +15,14 @@ void main() {
   });
 
   testWidgets('Chat renders Eva and the opening turn', (tester) async {
+    // Tall viewport so every turn renders (the message list is a lazy
+    // ListView, bottom-anchored — the opening line is the earliest turn,
+    // furthest from the bottom, so a short viewport wouldn't build it).
+    tester.view.physicalSize = const Size(700, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(const EvaApp());
     await tester.pump(const Duration(milliseconds: 50));
 
