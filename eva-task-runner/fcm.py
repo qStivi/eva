@@ -84,7 +84,18 @@ def send(token: str, title: str, body: str):
     payload = json.dumps({
         "message": {
             "token": token,
-            "notification": {"title": title, "body": body[:400]},
+            # Data-only, not "notification" — Android would otherwise
+            # auto-display a "notification" payload itself in the
+            # background/killed state *and* our own handler would show it
+            # again in the foreground, producing duplicates. Data-only means
+            # our code (push_service.dart) is the only thing that ever shows
+            # a notification, in every app state, so there's one path to get
+            # right instead of two disagreeing ones.
+            "data": {"title": title, "body": body[:400]},
+            # Android needs this for delivery priority while the phone is
+            # dozing/backgrounded — data-only messages default to normal
+            # priority otherwise, which can be delayed significantly.
+            "android": {"priority": "high"},
         }
     }).encode()
     req = urllib.request.Request(
