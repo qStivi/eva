@@ -31,7 +31,10 @@ COST_LOG = os.path.expanduser("~/.config/eva-web/cost_log.jsonl")  # same log mo
 # $/MTok, matching model_router's "mid" tier pricing for this same model.
 PRICE_IN, PRICE_OUT = 1.50, 7.50
 
-MAX_RESULTS_PER_QUERY = 5
+# Only real constraint is context length, not an arbitrary "don't overdo it" cap —
+# Mistral's context window has plenty of room for this. Env-overridable per job kind
+# if that ever needs tuning without a redeploy.
+MAX_RESULTS_PER_QUERY = int(os.environ.get("RESEARCH_MAX_RESULTS_PER_QUERY", "40"))
 DEFAULT_MAX_ITERATIONS = 4
 
 _key_cache = {"key": None, "ts": 0}
@@ -142,7 +145,10 @@ def _format_findings(findings: list) -> str:
 
 def run(spec: dict) -> dict:
     """Entry point called by runner.py's executor dispatch. spec: {"topic": str,
-    "max_iterations": int?}. Returns {"summary": str, "sources": [...]}."""
+    "max_iterations": int?}. Returns {"summary": str, "sources": [...], "trail": [...]}
+    — trail is the full audit record: every query issued, what it returned, and
+    the stop/continue verdict after each one, so a finished job is inspectable
+    after the fact (via GET /jobs/<id> or check_task) and not just its summary."""
     topic = (spec.get("topic") or "").strip()
     if not topic:
         raise ValueError("research job spec needs a non-empty 'topic'")
@@ -151,6 +157,7 @@ def run(spec: dict) -> dict:
     queries = [topic]
     findings = []
     seen_urls = set()
+    trail = []
 
     for _ in range(max_iterations):
         if not queries:
@@ -161,6 +168,10 @@ def run(spec: dict) -> dict:
         seen_urls.update(h["url"] for h in new)
         findings.extend(new)
 
+        entry = {"query": q, "results": [{"title": h["title"], "url": h["url"]} for h in new],
+                  "verdict": None}
+        trail.append(entry)
+
         if not findings:
             continue  # nothing yet, no point asking the model to judge an empty set
 
@@ -169,6 +180,7 @@ def run(spec: dict) -> dict:
             "Bias toward stopping once the core question is answered.",
             VERDICT_PROMPT.format(topic=topic, n=len(findings),
                                    findings=_format_findings(findings))))
+        entry["verdict"] = verdict
         if verdict.get("done"):
             break
         nq = (verdict.get("next_query") or "").strip()
@@ -178,7 +190,7 @@ def run(spec: dict) -> dict:
     if not findings:
         return {"summary": f"Couldn't find anything usable on \"{topic}\" — "
                             "SearXNG returned no results across every query tried.",
-                "sources": []}
+                "sources": [], "trail": trail}
 
     final = _extract_json(_llm_call(
         "You write clear, well-sourced research summaries from search findings.",
@@ -188,4 +200,5 @@ def run(spec: dict) -> dict:
         # the whole job silently; a rough summary still beats losing the work.
         final = {"summary": _format_findings(findings), "sources": [
             {"title": f["title"], "url": f["url"]} for f in findings]}
+    final["trail"] = trail
     return final
