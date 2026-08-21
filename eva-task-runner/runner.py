@@ -22,6 +22,8 @@ matching eva-web/toolset_router.py's posture. Config via environment (see
   EVA_AGENT_ID       Letta agent id results get injected into
   NTFY_URL           optional; if unset, push notification is a no-op (ntfy
                      itself isn't stood up yet — see the plan's Phase 1 note)
+  RETENTION_DAYS     default 30; finished (done/failed) jobs older than this
+                     get pruned on startup and every 6h thereafter
 """
 import json
 import os
@@ -42,6 +44,8 @@ HOST = "127.0.0.1"  # loopback only, always — see module docstring
 LETTA_HOST = os.environ.get("LETTA_HOST", "http://localhost:8283").rstrip("/")
 AGENT_ID = os.environ.get("EVA_AGENT_ID", "")
 NTFY_URL = os.environ.get("NTFY_URL", "")
+RETENTION_DAYS = float(os.environ.get("RETENTION_DAYS", "30"))
+PRUNE_INTERVAL_S = 6 * 3600
 
 DB_PATH = os.path.expanduser("~/.local/share/eva/tasks.db")
 _db_lock = threading.Lock()
@@ -85,6 +89,28 @@ def get_job(job_id: str):
     with _db_lock, _db() as conn:
         row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     return dict(row) if row else None
+
+
+def prune_old_jobs():
+    """Delete finished jobs (done/failed) older than RETENTION_DAYS. Never touches
+    pending/running rows regardless of age — an in-flight job is never pruned out
+    from under itself. Best-effort; a prune failure shouldn't take the service down."""
+    cutoff = time.time() - RETENTION_DAYS * 86400
+    try:
+        with _db_lock, _db() as conn:
+            n = conn.execute(
+                "DELETE FROM jobs WHERE state IN ('done','failed') AND updated_at < ?",
+                (cutoff,)).rowcount
+        if n:
+            print(f"eva-task-runner: pruned {n} job(s) older than {RETENTION_DAYS:.0f}d")
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write("eva-task-runner: prune failed: %s\n" % e)
+
+
+def _prune_loop():
+    while True:
+        time.sleep(PRUNE_INTERVAL_S)
+        prune_old_jobs()
 
 
 def list_jobs(state: str = None):
@@ -226,6 +252,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     init_db()
+    prune_old_jobs()
+    threading.Thread(target=_prune_loop, daemon=True).start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"eva-task-runner listening on {HOST}:{PORT} (agent={AGENT_ID or '?'})")
     server.serve_forever()

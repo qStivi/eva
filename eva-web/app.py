@@ -67,15 +67,21 @@ def letta_send(message: str):
     with urllib.request.urlopen(req, timeout=300) as r:
         data = json.loads(r.read().decode())
     msgs = data.get("messages", data if isinstance(data, list) else [])
+    # Pair tool_call_message -> tool_return_message by tool_call_id so a call Letta
+    # rejected (e.g. ToolConstraintError for a tool that isn't attached) doesn't get
+    # reported as if it ran — confirmed live: a stale searxng_web_search call showed
+    # up in this list looking identical to a real one until this was fixed.
+    ok_ids = {m.get("tool_call_id") for m in msgs
+              if m.get("message_type") == "tool_return_message" and m.get("status") == "success"}
     reply_parts, tools = [], []
     for m in msgs:
         t = m.get("message_type")
         if t == "assistant_message" and m.get("content"):
             reply_parts.append(m["content"])
         elif t == "tool_call_message":
-            name = m.get("tool_call", {}).get("name")
-            if name:
-                tools.append(name)
+            call = m.get("tool_call") or {}
+            if call.get("name") and call.get("tool_call_id") in ok_ids:
+                tools.append(call["name"])
     reply = "\n".join(p.strip() for p in reply_parts).strip()
     return reply or "(no reply)", tools, data.get("usage")
 

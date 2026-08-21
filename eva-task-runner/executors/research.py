@@ -36,6 +36,12 @@ PRICE_IN, PRICE_OUT = 1.50, 7.50
 # if that ever needs tuning without a redeploy.
 MAX_RESULTS_PER_QUERY = int(os.environ.get("RESEARCH_MAX_RESULTS_PER_QUERY", "40"))
 DEFAULT_MAX_ITERATIONS = 4
+# Soft ceiling, not a hard cap on quality: observed real jobs cost $0.005-0.01, so
+# this is ~30-50x that — a real backstop against a pathological loop (e.g. verdict
+# never returning done), not a knob meant to bind in normal use. Stops issuing new
+# verdict calls past this; the final write-up still runs once on whatever's in hand,
+# since a job that goes over budget should still deliver something rather than fail.
+MAX_COST_USD = float(os.environ.get("RESEARCH_MAX_COST_USD", "0.30"))
 
 _key_cache = {"key": None, "ts": 0}
 
@@ -71,10 +77,11 @@ def searxng_search(query: str, timeout: int = 15) -> list:
     return out
 
 
-def _llm_call(system: str, user: str, timeout: int = 90) -> str:
+def _llm_call(system: str, user: str, timeout: int = 90) -> tuple:
     """One chat-completion call to the cloud tier (Mistral). Raises on failure —
     callers decide how to degrade (the research loop treats a synthesis failure as
-    a hard stop, not a silent skip, since the whole job's output depends on it)."""
+    a hard stop, not a silent skip, since the whole job's output depends on it).
+    Returns (content, cost_usd) so callers can track spend against a budget."""
     body = json.dumps({
         "model": CLOUD_MODEL,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -86,17 +93,19 @@ def _llm_call(system: str, user: str, timeout: int = 90) -> str:
                  "Authorization": "Bearer " + _mistral_key()})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.loads(r.read().decode())
-    _log_cost(data.get("usage") or {})
-    return data["choices"][0]["message"]["content"]
+    cost = _log_cost(data.get("usage") or {})
+    return data["choices"][0]["message"]["content"], cost
 
 
-def _log_cost(usage: dict):
+def _log_cost(usage: dict) -> float:
     """Append one line to the same cost log model_router.py writes, so research
-    spend shows up alongside chat spend. Best-effort; never raises."""
+    spend shows up alongside chat spend. Best-effort; never raises. Returns the
+    computed cost regardless of whether the log write itself succeeded, so a
+    caller's budget tracking doesn't silently stop working if disk logging fails."""
+    prompt = usage.get("prompt_tokens", 0) or 0
+    out = usage.get("completion_tokens", 0) or 0
+    cost = (prompt * PRICE_IN + out * PRICE_OUT) / 1e6
     try:
-        prompt = usage.get("prompt_tokens", 0) or 0
-        out = usage.get("completion_tokens", 0) or 0
-        cost = (prompt * PRICE_IN + out * PRICE_OUT) / 1e6
         line = {"ts": time.time(), "tier": "research", "model": CLOUD_MODEL,
                 "cost_usd": round(cost, 6), "usage": usage}
         os.makedirs(os.path.dirname(COST_LOG), exist_ok=True)
@@ -104,6 +113,7 @@ def _log_cost(usage: dict):
             f.write(json.dumps(line) + "\n")
     except Exception:  # noqa: BLE001
         pass
+    return cost
 
 
 def _extract_json(text: str) -> dict:
@@ -158,10 +168,13 @@ def run(spec: dict) -> dict:
     findings = []
     seen_urls = set()
     trail = []
+    spent = 0.0
 
     for _ in range(max_iterations):
         if not queries:
             break
+        if spent >= MAX_COST_USD:
+            break  # over budget: stop refining, go straight to the write-up below
         q = queries.pop(0)
         hits = searxng_search(q)
         new = [h for h in hits if h["url"] not in seen_urls]
@@ -175,11 +188,13 @@ def run(spec: dict) -> dict:
         if not findings:
             continue  # nothing yet, no point asking the model to judge an empty set
 
-        verdict = _extract_json(_llm_call(
+        text, cost = _llm_call(
             "You decide when web research has gathered enough to write up. "
             "Bias toward stopping once the core question is answered.",
             VERDICT_PROMPT.format(topic=topic, n=len(findings),
-                                   findings=_format_findings(findings))))
+                                   findings=_format_findings(findings)))
+        spent += cost
+        verdict = _extract_json(text)
         entry["verdict"] = verdict
         if verdict.get("done"):
             break
@@ -192,9 +207,10 @@ def run(spec: dict) -> dict:
                             "SearXNG returned no results across every query tried.",
                 "sources": [], "trail": trail}
 
-    final = _extract_json(_llm_call(
+    text, _cost = _llm_call(
         "You write clear, well-sourced research summaries from search findings.",
-        WRITEUP_PROMPT.format(topic=topic, findings=_format_findings(findings))))
+        WRITEUP_PROMPT.format(topic=topic, findings=_format_findings(findings)))
+    final = _extract_json(text)
     if not final.get("summary"):
         # Synthesis didn't parse — fall back to the raw findings rather than fail
         # the whole job silently; a rough summary still beats losing the work.
