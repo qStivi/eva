@@ -14,11 +14,16 @@ class Composer extends StatefulWidget {
   final bool busy;
   final String placeholder;
 
+  /// Called when the user taps Stop while Eva is composing. When null, the busy
+  /// button is a plain (non-interactive) spinner.
+  final VoidCallback? onCancel;
+
   const Composer({
     super.key,
     required this.controller,
     required this.onSend,
     this.busy = false,
+    this.onCancel,
     this.placeholder = 'Say something to Eva…',
   });
 
@@ -115,7 +120,12 @@ class _ComposerState extends State<Composer> {
             ),
           ),
           const SizedBox(width: EvaSpace.s2),
-          _SendButton(canSend: _canSend, busy: widget.busy, onPressed: _trySend),
+          _SendButton(
+            canSend: _canSend,
+            busy: widget.busy,
+            onPressed: _trySend,
+            onCancel: widget.onCancel,
+          ),
         ],
       ),
     );
@@ -160,29 +170,47 @@ class _SendButton extends StatelessWidget {
   final bool canSend;
   final bool busy;
   final VoidCallback onPressed;
+  final VoidCallback? onCancel;
 
-  const _SendButton({required this.canSend, required this.busy, required this.onPressed});
+  const _SendButton({
+    required this.canSend,
+    required this.busy,
+    required this.onPressed,
+    this.onCancel,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // While busy, become a tappable Stop (spinner + square) so a slow or stalled
+    // turn can always be abandoned — never a dead, un-cancellable spinner.
+    final canStop = busy && onCancel != null;
     return AnimatedContainer(
       duration: EvaMotion.fast,
       width: EvaLayout.tapMin,
       height: EvaLayout.tapMin,
       decoration: BoxDecoration(
-        color: canSend ? EvaColors.accent : EvaColors.surfaceInset,
+        color: canStop
+            ? EvaColors.surfaceInset
+            : (canSend ? EvaColors.accent : EvaColors.surfaceInset),
         borderRadius: BorderRadius.circular(EvaRadii.md),
       ),
       child: IconButton(
-        onPressed: canSend ? onPressed : null,
-        tooltip: 'Send',
+        onPressed: busy ? onCancel : (canSend ? onPressed : null),
+        tooltip: busy ? 'Stop' : 'Send',
         color: canSend ? EvaColors.textOnAccent : EvaColors.textFaint,
         disabledColor: EvaColors.textFaint,
         icon: busy
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: EvaColors.textFaint),
+            ? Stack(
+                alignment: Alignment.center,
+                children: [
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: EvaColors.textMuted),
+                  ),
+                  Icon(canStop ? Icons.stop : Icons.more_horiz,
+                      size: 12, color: EvaColors.textMuted),
+                ],
               )
             : const Icon(Icons.arrow_upward, size: 20),
       ),

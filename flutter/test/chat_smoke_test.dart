@@ -52,6 +52,33 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
+  testWidgets('composer rebuilds on controller change (Send -> Stop -> Send)', (tester) async {
+    // Regression: the Composer used to sit outside the ListenableBuilder, so a
+    // finished turn didn't rebuild it — the send button stayed stuck on the
+    // spinner until an unrelated relayout (dismissing the keyboard) forced it.
+    tester.view.physicalSize = const Size(700, 3000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const EvaApp());
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.enterText(find.byType(TextField), 'hey');
+    await tester.pump();
+    expect(find.byTooltip('Send'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pump(); // controller went busy — the composer must rebuild to Stop
+    expect(find.byTooltip('Stop'), findsOneWidget);
+
+    // Let the canned reply + typewriter finish; the composer must return to Send
+    // on its own (no relayout), which only happens if it rebuilds on notify.
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.byTooltip('Send'), findsOneWidget);
+    expect(find.byTooltip('Stop'), findsNothing);
+  });
+
   testWidgets('Notebook tab shows the memory list', (tester) async {
     await tester.pumpWidget(const EvaApp());
     await tester.pump(const Duration(milliseconds: 50));

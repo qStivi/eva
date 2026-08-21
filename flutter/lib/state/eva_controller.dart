@@ -19,6 +19,10 @@ import '../data/mock_chat.dart';
 
 enum ConnectionStatus { mock, connecting, live, error }
 
+/// Whether LM Studio currently has Eva's model loaded (warm), not (cold — the
+/// next message will pay a load), or we can't tell (bridge unreachable/offline).
+enum ModelLoad { unknown, loaded, cold }
+
 /// Curated daily-driver id -> Letta model handle.
 const Map<String, String> _handleById = {
   'gpt-oss-20b': 'openai-proxy/openai/gpt-oss-20b',
@@ -49,9 +53,12 @@ class EvaController extends ChangeNotifier {
   String _agentName = 'eva';
   ConnectionStatus status = ConnectionStatus.mock;
   String? serverError;
+  ModelLoad modelLoad = ModelLoad.unknown;
 
   bool get live => status == ConnectionStatus.live && _api != null && _agentId != null;
   String get serverUrl => _settings?.serverUrl ?? kDefaultServerUrl;
+  String get accessClientId => _settings?.accessClientId ?? '';
+  String get accessClientSecret => _settings?.accessClientSecret ?? '';
   String get agentName => _agentName;
 
   final StreamController<String> _toasts = StreamController<String>.broadcast();
@@ -60,6 +67,14 @@ class EvaController extends ChangeNotifier {
   final List<Timer> _timers = [];
   final Random _rng = Random();
   int _replyIdx = 0;
+
+  // Monotonic turn id: every send/cancel bumps it, so a slow or abandoned reply
+  // that lands late can be dropped instead of re-freezing the UI in "thinking".
+  int _turn = 0;
+  // Health heartbeat: keeps `status` honest while idle and auto-recovers.
+  Timer? _heartbeat;
+  int _missedPulses = 0;
+  bool _disposed = false;
 
   EvaController({LettaApi? api, EvaSettings? settings}) {
     _api = api;
@@ -71,6 +86,8 @@ class EvaController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _heartbeat?.cancel();
     for (final t in _timers) {
       t.cancel();
     }
@@ -78,6 +95,83 @@ class EvaController extends ChangeNotifier {
     _toasts.close();
     _api?.close();
     super.dispose();
+  }
+
+  /// Stop waiting on the current turn and return to idle. Always safe to call —
+  /// this is the escape hatch when a reply is slow or the connection stalled, so
+  /// the composer never stays stuck in "thinking". Any reply still in flight is
+  /// dropped via the turn guard.
+  void cancelThinking() {
+    _turn++;
+    for (final t in _timers) {
+      t.cancel();
+    }
+    _timers.clear();
+    thinking = false;
+    typingText = null;
+    evaMood = EvaMood.neutral;
+    notifyListeners();
+  }
+
+  // ---- health heartbeat ----------------------------------------------------
+
+  void _startHeartbeat() {
+    _heartbeat?.cancel();
+    _missedPulses = 0;
+    _heartbeat = Timer.periodic(const Duration(seconds: 20), (_) => _pulse());
+  }
+
+  /// Probe the server while idle so the connection dot reflects reality and a
+  /// dropped link auto-recovers without a manual reconnect. Skips while busy so
+  /// it never interferes with an in-flight turn; only flips to "error" after two
+  /// consecutive misses so a single slow probe doesn't cause flapping.
+  Future<void> _pulse() async {
+    final api = _api;
+    if (api == null || busy || status == ConnectionStatus.connecting) return;
+    final ok = await api.health();
+    if (_disposed) return;
+    if (ok) {
+      _missedPulses = 0;
+      if (status == ConnectionStatus.error && _agentId != null) {
+        status = ConnectionStatus.live;
+        serverError = null;
+        notifyListeners();
+      }
+    } else if (status == ConnectionStatus.live) {
+      if (++_missedPulses >= 2) {
+        status = ConnectionStatus.error;
+        serverError = 'connection lost';
+        notifyListeners();
+      }
+    }
+    await _pollModelLoad();
+  }
+
+  /// Eva's model as LM Studio names it: the Letta handle minus its provider
+  /// prefix (openai-proxy/openai/gpt-oss-20b -> openai/gpt-oss-20b).
+  String? get _loadedTargetId {
+    final handle = _handleById[model.id] ?? model.id;
+    final slash = handle.indexOf('/');
+    return slash < 0 ? handle : handle.substring(slash + 1);
+  }
+
+  /// Refresh whether LM Studio has Eva's model warm (via the /lmstudio/status
+  /// bridge). Best-effort; unreachable bridge => unknown.
+  Future<void> _pollModelLoad() async {
+    final api = _api;
+    if (api == null || status != ConnectionStatus.live) return;
+    final loaded = await api.loadedModels();
+    if (_disposed) return;
+    final target = _loadedTargetId;
+    final next = loaded == null
+        ? ModelLoad.unknown
+        : (target != null && loaded.contains(target))
+            ? ModelLoad.loaded
+            : ModelLoad.cold;
+    if (next != modelLoad) {
+      modelLoad = next;
+      notifyListeners();
+    }
   }
 
   void _emitToast(String text) {
@@ -135,19 +229,24 @@ class EvaController extends ChangeNotifier {
       status = ConnectionStatus.error;
       serverError = e is LettaException ? e.message : e.toString();
     }
+    _startHeartbeat(); // keep status honest + auto-recover from here on
+    unawaited(_pollModelLoad());
     notifyListeners();
   }
 
-  /// Point at a different server URL (Settings) and reconnect.
-  Future<void> reconfigure(String url) async {
+  /// Point at a different server URL (Settings) and reconnect. Optionally updates
+  /// the Cloudflare Access service-token pair used for public-tunnel access.
+  Future<void> reconfigure(String url, {String? accessClientId, String? accessClientSecret}) async {
     final settings = _settings;
     if (settings == null) return; // mock-only build
     settings.serverUrl = url.trim();
+    if (accessClientId != null) settings.accessClientId = accessClientId.trim();
+    if (accessClientSecret != null) settings.accessClientSecret = accessClientSecret.trim();
     settings.agentId = null;
     _agentId = null;
     await settings.save();
     _api?.close();
-    _api = LettaApi(settings.serverUrl);
+    _api = LettaApi(settings.serverUrl, authHeaders: settings.accessHeaders);
     await connect();
   }
 
@@ -188,12 +287,14 @@ class EvaController extends ChangeNotifier {
   Future<void> selectModel(EvaModel m) async {
     final previous = model;
     model = m;
+    modelLoad = ModelLoad.unknown; // new model — recheck whether it's warm
     notifyListeners();
     if (live) {
       final handle = _handleById[m.id] ?? m.id;
       try {
         await _api!.setModel(_agentId!, handle);
         _emitToast('*shrugs* New brain. Same me. We’ll see how it goes.');
+        unawaited(_pollModelLoad());
       } catch (e) {
         model = previous;
         _emitToast("Couldn't switch brains — ${_short(e)}");
@@ -315,29 +416,35 @@ class EvaController extends ChangeNotifier {
     draft.clear();
     thinking = true;
     evaMood = EvaMood.thinking;
+    final myTurn = ++_turn;
     notifyListeners();
     if (live) {
-      unawaited(_sendLive(text));
+      unawaited(_sendLive(text, myTurn));
     } else {
       final reply = cannedReplies[_replyIdx % cannedReplies.length];
       _replyIdx++;
       _timers.add(Timer(
         Duration(milliseconds: 850 + _rng.nextInt(500)),
-        () => _typewriteMock(text, reply),
+        () {
+          if (myTurn == _turn) _typewriteMock(text, reply);
+        },
       ));
     }
   }
 
-  Future<void> _sendLive(String userText) async {
+  Future<void> _sendLive(String userText, int myTurn) async {
     final before = memories.length;
     try {
       final reply = await _api!.sendMessage(_agentId!, userText);
+      if (_disposed || myTurn != _turn) return; // disposed, cancelled, or superseded
       _runTypewriter(reply.text, EvaMood.neutral, false, () async {
         await _loadMemory();
         if (memories.length > before) _emitToast(rememberedToast);
+        unawaited(_pollModelLoad()); // the model just ran — should read as loaded now
       }, tools: reply.tools);
       return;
     } catch (e) {
+      if (_disposed || myTurn != _turn) return; // cancelled/disposed — user moved on
       thinking = false;
       evaMood = EvaMood.neutral;
       messages.add(ChatMessage(

@@ -27,7 +27,10 @@ Future<void> main() async {
   }
 
   final settings = await EvaSettings.load();
-  final controller = EvaController(api: LettaApi(settings.serverUrl), settings: settings);
+  final controller = EvaController(
+    api: LettaApi(settings.serverUrl, authHeaders: settings.accessHeaders),
+    settings: settings,
+  );
   // Connect in the background — the UI shows "connecting" then live/mock.
   controller.connect();
 
