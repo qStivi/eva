@@ -39,7 +39,14 @@ class EvaController extends ChangeNotifier {
   final Persona persona = defaultPersona();
   EvaModel model = evaModels.first;
   String userName = 'Stephan';
-  final Map<String, bool> prefs = {'initiative': true, 'voice': false, 'cues': true};
+  final Map<String, bool> prefs = {'voice': false, 'cues': true};
+
+  // Scheduled check-ins ("let Eva take initiative") — real config, proxied
+  // through eva-web to eva-task-runner (see runner.py's docstring). Null
+  // until loaded (or off live/mock); the Settings screen shows a loading
+  // state rather than assuming a default.
+  CheckinConfig? checkinConfig;
+  bool checkinBusy = false;
 
   EvaMood evaMood = EvaMood.neutral;
   bool thinking = false;
@@ -233,6 +240,7 @@ class EvaController extends ChangeNotifier {
     }
     _startHeartbeat(); // keep status honest + auto-recover from here on
     unawaited(_pollModelLoad());
+    unawaited(_loadCheckinConfig());
     notifyListeners();
   }
 
@@ -265,6 +273,52 @@ class EvaController extends ChangeNotifier {
     }
     // Unknown model the agent is on — show it as-is so Settings isn't misleading.
     return EvaModel(id: handle, name: handle.split('/').last, note: 'current');
+  }
+
+  // ---- scheduled check-ins ----
+
+  Future<void> _loadCheckinConfig() async {
+    final api = _api;
+    final settings = _settings;
+    if (api == null || settings == null) return;
+    try {
+      checkinConfig = await api.getCheckinConfig(settings.webBaseUrl, settings.webHeaders);
+      notifyListeners();
+    } catch (_) {
+      // Best-effort — Settings just shows "unavailable" rather than crashing.
+    }
+  }
+
+  Future<void> setCheckinEnabled(bool enabled) => _updateCheckin(enabled: enabled);
+  Future<void> setCheckinInterval(int minutes) => _updateCheckin(intervalMinutes: minutes);
+  Future<void> setCheckinQuietHours(String start, String end) =>
+      _updateCheckin(quietStart: start, quietEnd: end);
+
+  Future<void> _updateCheckin({
+    bool? enabled,
+    int? intervalMinutes,
+    String? quietStart,
+    String? quietEnd,
+  }) async {
+    final api = _api;
+    final settings = _settings;
+    if (api == null || settings == null) return;
+    checkinBusy = true;
+    notifyListeners();
+    try {
+      checkinConfig = await api.setCheckinConfig(
+        settings.webBaseUrl,
+        settings.webHeaders,
+        enabled: enabled,
+        intervalMinutes: intervalMinutes,
+        quietStart: quietStart,
+        quietEnd: quietEnd,
+      );
+    } catch (e) {
+      _emitToast('Could not update check-in settings: ${e is LettaException ? e.message : e}');
+    }
+    checkinBusy = false;
+    notifyListeners();
   }
 
   // ---- persona / prefs (local only for now) ----

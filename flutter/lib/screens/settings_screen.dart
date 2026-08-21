@@ -3,10 +3,22 @@
 
 import 'package:flutter/material.dart';
 
+import '../api/letta_api.dart' show CheckinConfig;
 import '../data/mock_chat.dart';
 import '../eva_tokens.dart';
 import '../state/eva_controller.dart';
 import '../widgets/bits.dart';
+
+// Interval options offered for scheduled check-ins, in minutes.
+const List<int> _kCheckinIntervals = [60, 120, 240, 480, 720, 1440];
+
+String _intervalLabel(int minutes) {
+  if (minutes % 1440 == 0) return '${minutes ~/ 1440}d';
+  if (minutes % 60 == 0) return '${minutes ~/ 60}h';
+  return '${minutes}m';
+}
+
+final RegExp _kHhMm = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
 
 class SettingsScreen extends StatefulWidget {
   final EvaController controller;
@@ -29,8 +41,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController(text: widget.controller.chatUser);
   late final TextEditingController _chatPassword =
       TextEditingController(text: widget.controller.chatPassword);
+  final TextEditingController _quietStart = TextEditingController();
+  final TextEditingController _quietEnd = TextEditingController();
+  bool _quietInitialized = false;
 
   EvaController get c => widget.controller;
+
+  void _maybeInitQuietHours(CheckinConfig cfg) {
+    if (_quietInitialized) return;
+    _quietStart.text = cfg.quietStart;
+    _quietEnd.text = cfg.quietEnd;
+    _quietInitialized = true;
+  }
+
+  void _saveQuietHours() {
+    if (!_kHhMm.hasMatch(_quietStart.text) || !_kHhMm.hasMatch(_quietEnd.text)) return;
+    c.setCheckinQuietHours(_quietStart.text, _quietEnd.text);
+  }
 
   void _reconnect() => c.reconfigure(
         _server.text,
@@ -48,6 +75,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _accessSecret.dispose();
     _chatUser.dispose();
     _chatPassword.dispose();
+    _quietStart.dispose();
+    _quietEnd.dispose();
     super.dispose();
   }
 
@@ -69,13 +98,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _card(child: _modelSection()),
           const SizedBox(height: EvaSpace.s5),
 
+          const Eyebrow('Check-ins'),
+          _card(child: _checkinSection()),
+          const SizedBox(height: EvaSpace.s5),
+
           const Eyebrow('How she shows up'),
           _card(
             child: Column(
               children: [
-                _switchRow('Let Eva take initiative',
-                    'She can start the conversation, not just answer', 'initiative'),
-                const Divider(height: 1),
                 _switchRow('Voice replies', 'Optional layer on top of text', 'voice'),
                 const Divider(height: 1),
                 _switchRow('Show memory cues',
@@ -216,6 +246,100 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  Widget _checkinSection() {
+    final cfg = c.checkinConfig;
+    if (cfg == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: EvaSpace.s3),
+        child: Text(
+          c.live ? 'Loading…' : 'Connect above to load check-in settings',
+          style: const TextStyle(fontSize: EvaType.sm, color: EvaColors.textMuted),
+        ),
+      );
+    }
+    _maybeInitQuietHours(cfg);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _row(
+          'Let Eva take initiative',
+          'A quiet nudge, on a schedule — she only actually reaches out if '
+              'she has something worth saying',
+          Switch(
+            value: cfg.enabled,
+            onChanged: c.checkinBusy ? null : (v) => c.setCheckinEnabled(v),
+          ),
+        ),
+        if (cfg.enabled) ...[
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: EvaSpace.s3),
+            child: Row(
+              children: [
+                const Expanded(child: Text('How often', style: TextStyle(fontSize: EvaType.base))),
+                DropdownButton<int>(
+                  value: _kCheckinIntervals.contains(cfg.intervalMinutes)
+                      ? cfg.intervalMinutes
+                      : _kCheckinIntervals.first,
+                  underline: const SizedBox.shrink(),
+                  items: [
+                    for (final m in _kCheckinIntervals)
+                      DropdownMenuItem(value: m, child: Text('every ${_intervalLabel(m)}')),
+                  ],
+                  onChanged: c.checkinBusy
+                      ? null
+                      : (v) {
+                          if (v != null) c.setCheckinInterval(v);
+                        },
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: EvaSpace.s3),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _quietStart,
+                    autocorrect: false,
+                    decoration: const InputDecoration(labelText: 'Quiet from', hintText: 'HH:MM'),
+                    onSubmitted: (_) => _saveQuietHours(),
+                    onTapOutside: (_) => _saveQuietHours(),
+                  ),
+                ),
+                const SizedBox(width: EvaSpace.s3),
+                Expanded(
+                  child: TextField(
+                    controller: _quietEnd,
+                    autocorrect: false,
+                    decoration: const InputDecoration(labelText: 'until', hintText: 'HH:MM'),
+                    onSubmitted: (_) => _saveQuietHours(),
+                    onTapOutside: (_) => _saveQuietHours(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: EvaSpace.s1, bottom: EvaSpace.s2),
+            child: Text(_nextDueLabel(cfg.nextDueAt),
+                style: const TextStyle(fontSize: EvaType.xs, color: EvaColors.textFaint)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _nextDueLabel(double nextDueAtEpoch) {
+    final due = DateTime.fromMillisecondsSinceEpoch((nextDueAtEpoch * 1000).round());
+    final diff = due.difference(DateTime.now());
+    if (diff.isNegative) return 'Next check-in: due now (may be waiting out quiet hours)';
+    if (diff.inHours >= 1) return 'Next check-in: in about ${diff.inHours}h';
+    return 'Next check-in: in about ${diff.inMinutes}m';
   }
 
   Widget _modelSection() {

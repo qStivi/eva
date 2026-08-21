@@ -16,11 +16,21 @@ Config via environment (see ~/.config/eva-web/eva-web.env):
                      Assistant's Assist conversation agent talks to those); if
                      empty, the /v1 routes are DISABLED (they 404) so we never
                      expose an unauthenticated Eva endpoint by accident.
+  RUNNER_HOST        default http://localhost:8286 — eva-task-runner, for the
+                     /api/checkin/* proxy routes below.
 
 The /v1/* routes (chat/completions, models) let Home Assistant use Eva as an
 OpenAI-style conversation agent: HA POSTs OpenAI-shaped chat, we forward the last
 user turn to the same Letta `eva` agent (persona, memory, HA tools) and return the
 reply in OpenAI shape. LAN only — never put this behind the Cloudflare tunnel.
+
+The /api/checkin/* routes proxy to eva-task-runner's check-in scheduler (Eva
+starting a conversation instead of only answering one — see runner.py's
+docstring). /api/checkin/config is Basic-auth only (the Flutter app, reading/
+writing its own settings); /api/checkin/trigger accepts *either* Basic auth
+or the same Bearer key as /v1/*, so a Home Assistant automation can fire an
+immediate check-in ("Stephan just got home") the same way it already talks
+to the /v1 routes, without a third credential to manage.
 """
 import base64
 import hmac
@@ -40,6 +50,7 @@ AGENT_ID = os.environ.get("EVA_AGENT_ID", "")
 AUTH_USER = os.environ.get("EVA_WEB_USER", "eva")
 AUTH_PASS = os.environ.get("EVA_WEB_PASSWORD", "")
 API_KEY = os.environ.get("EVA_API_KEY", "")
+RUNNER_HOST = os.environ.get("RUNNER_HOST", "http://localhost:8286").rstrip("/")
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 try:
@@ -163,6 +174,14 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return hmac.compare_digest(hdr[7:].strip(), API_KEY)
 
+    def _checkin_trigger_authed(self) -> bool:
+        """Either credential works for /api/checkin/trigger: the app's Basic
+        auth, or the same Bearer key HA already uses for /v1/* — so HA has
+        one key to manage, not a second one just for this."""
+        if self._authed():
+            return True
+        return bool(API_KEY) and self._api_authed()
+
     def _json(self, code: int, obj):
         payload = json.dumps(obj).encode()
         self.send_response(code)
@@ -170,6 +189,28 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    def _proxy_to_runner(self, method: str, runner_path: str):
+        """Forward a request body-for-body to eva-task-runner (loopback-only —
+        this is its designated front door, same pattern as chat's relationship
+        to Letta) and relay back whatever it says, status code included."""
+        body = None
+        if method == "POST":
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            body = self.rfile.read(length) if length else b"{}"
+        req = urllib.request.Request(
+            RUNNER_HOST + runner_path, data=body, method=method,
+            headers={"Content-Type": "application/json"} if body is not None else {})
+        try:
+            with urllib.request.urlopen(req, timeout=300) as r:
+                return self._json(r.status, json.loads(r.read().decode()))
+        except urllib.error.HTTPError as e:
+            try:
+                return self._json(e.code, json.loads(e.read().decode()))
+            except Exception:  # noqa: BLE001
+                return self._json(e.code, {"error": str(e)})
+        except Exception as e:  # noqa: BLE001
+            return self._json(502, {"error": f"eva-task-runner unreachable: {e}"})
 
     def _file(self, path: str, ctype: str):
         try:
@@ -208,14 +249,24 @@ class Handler(BaseHTTPRequestHandler):
             if model_router is None:
                 return self._json(200, {"error": "model_router not loaded"})
             return self._json(200, model_router.running_total())
+        if self.path == "/api/checkin/config":
+            return self._proxy_to_runner("GET", "/checkin/config")
         self.send_error(404)
 
     def do_POST(self):
         # OpenAI-compatible surface (Home Assistant): Bearer-key auth, own routes.
         if self.path.startswith("/v1/"):
             return self._openai_post()
+        # Either Basic (the app) or the /v1 Bearer key (Home Assistant) — checked
+        # before the blanket Basic-only gate below, which everything else uses.
+        if self.path == "/api/checkin/trigger":
+            if not self._checkin_trigger_authed():
+                return self._json(401, {"error": "unauthorized"})
+            return self._proxy_to_runner("POST", "/checkin/trigger")
         if not self._authed():
             return self._need_auth()
+        if self.path == "/api/checkin/config":
+            return self._proxy_to_runner("POST", "/checkin/config")
         if self.path != "/api/chat":
             return self.send_error(404)
         try:

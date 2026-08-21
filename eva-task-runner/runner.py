@@ -27,9 +27,22 @@ eva-web/toolset_router.py's posture. Config via environment (see
                              no-op — chat and job execution work regardless.
   RETENTION_DAYS             default 30; finished (done/failed) jobs older
                              than this get pruned on startup and every 6h after
+
+Also owns scheduled/triggered "check-ins" — Eva starting a conversation
+instead of only answering one (see persona/eva.md's "How I check in on my
+own" section). Same injection + push mechanism as job reports, just fired by
+a timer or an external trigger (Home Assistant) instead of a finished job.
+Config (on/off, interval, quiet hours) lives in the DB, editable via
+GET/POST /checkin/config (the Flutter app, through eva-web's proxy). An
+immediate check-in — from Home Assistant, or anything else — goes through
+POST /checkin/trigger with an optional {"reason": "..."} free-text context
+string (e.g. "Stephan just got home"); also reached only through eva-web's
+proxy, never directly, same as the rest of this process.
 """
+import datetime
 import json
 import os
+import re
 import sqlite3
 import sys
 import threading
@@ -86,6 +99,19 @@ def init_db():
                 added_at REAL NOT NULL
             )
         """)
+        # Single-row config for scheduled check-ins. quiet_start/quiet_end are
+        # "HH:MM" 24h local time, wrapping midnight if start > end.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS checkin_config (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                enabled INTEGER NOT NULL DEFAULT 0,
+                interval_minutes INTEGER NOT NULL DEFAULT 240,
+                quiet_start TEXT NOT NULL DEFAULT '22:00',
+                quiet_end TEXT NOT NULL DEFAULT '08:00',
+                last_checkin_at REAL NOT NULL DEFAULT 0
+            )
+        """)
+        conn.execute("INSERT OR IGNORE INTO checkin_config (id) VALUES (1)")
 
 
 def add_fcm_token(token: str):
@@ -104,6 +130,83 @@ def list_fcm_tokens():
     with _db_lock, _db() as conn:
         rows = conn.execute("SELECT token FROM fcm_tokens").fetchall()
     return [r["token"] for r in rows]
+
+
+def get_checkin_config() -> dict:
+    with _db_lock, _db() as conn:
+        row = conn.execute("SELECT * FROM checkin_config WHERE id = 1").fetchone()
+    cfg = dict(row)
+    cfg["next_due_at"] = cfg["last_checkin_at"] + cfg["interval_minutes"] * 60
+    return cfg
+
+
+def update_checkin_config(**fields):
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    with _db_lock, _db() as conn:
+        conn.execute(f"UPDATE checkin_config SET {cols} WHERE id = 1", list(fields.values()))  # noqa: S608 — fields keys are our own fixed set below, never request input
+
+
+def _in_quiet_hours(cfg: dict, now: datetime.datetime) -> bool:
+    try:
+        sh, sm = (int(x) for x in cfg["quiet_start"].split(":"))
+        eh, em = (int(x) for x in cfg["quiet_end"].split(":"))
+    except (ValueError, AttributeError):
+        return False
+    t, s, e = now.time(), datetime.time(sh, sm), datetime.time(eh, em)
+    if s == e:
+        return False
+    if s < e:
+        return s <= t < e
+    return t >= s or t < e  # wraps past midnight, e.g. 22:00 -> 08:00
+
+
+CHECKIN_POLL_S = 5 * 60
+
+
+def _checkin_loop():
+    while True:
+        time.sleep(CHECKIN_POLL_S)
+        try:
+            cfg = get_checkin_config()
+            if not cfg["enabled"]:
+                continue
+            if time.time() < cfg["next_due_at"]:
+                continue
+            if _in_quiet_hours(cfg, datetime.datetime.now()):
+                continue
+            _do_checkin("scheduled")
+        except Exception as e:  # noqa: BLE001 — one bad tick must not kill the loop
+            sys.stderr.write("eva-task-runner: checkin loop error: %s\n" % e)
+
+
+def _checkin_nudge_text(reason: str) -> str:
+    """The system-role nudge Eva sees — never something Stephan actually said.
+    Framed so she treats it as a prompt to *consider* reaching out, not an
+    instruction to always say something (see persona/eva.md)."""
+    context = f" Context: {reason}." if reason and reason not in ("scheduled", "manual") else ""
+    return ("(quiet background nudge, not something Stephan said.)" + context +
+            " This might be a good moment to check in, if you actually have something worth "
+            "saying — otherwise it's completely fine to stay quiet and let this pass.")
+
+
+def _do_checkin(reason: str):
+    """Fired by the scheduler or an external trigger (Home Assistant, etc.).
+    Always marks the check-in as having happened (so a silent response doesn't
+    cause an immediate retry) but only pushes/notifies if Eva actually replied
+    with something — her restraint is the point, not a bug to work around."""
+    try:
+        reply = _inject_and_get_reply(_checkin_nudge_text(reason))
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write("eva-task-runner: checkin inject failed: %s\n" % e)
+        reply = ""
+    update_checkin_config(last_checkin_at=time.time())
+    if reply:
+        try:
+            _push(reply, "Eva")
+        except Exception as e:  # noqa: BLE001
+            sys.stderr.write("eva-task-runner: checkin push failed: %s\n" % e)
 
 
 def create_job(kind: str, spec: dict) -> str:
@@ -177,7 +280,7 @@ def _report(job_id: str):
     except Exception as e:  # noqa: BLE001 — reporting must never crash the executor thread
         sys.stderr.write("eva-task-runner: inject failed: %s\n" % e)
     try:
-        _notify(job, text)
+        _push(text, "Eva finished: " + job["kind"])
     except Exception as e:  # noqa: BLE001
         sys.stderr.write("eva-task-runner: push failed: %s\n" % e)
 
@@ -212,15 +315,34 @@ def _inject(text: str):
         pass
 
 
-def _notify(job: dict, text: str):
+def _inject_and_get_reply(text: str) -> str:
+    """Like _inject, but parses the response for Eva's own reply text (empty
+    string if she said nothing, or AGENT_ID isn't set). The /messages POST
+    processes the turn synchronously and returns it same as a real user turn
+    would — same parsing eva-web's letta_send() does, minus tool-call tracking
+    since check-ins don't need it."""
+    if not AGENT_ID:
+        return ""
+    body = json.dumps({"messages": [{"role": "system", "content": text}]}).encode()
+    req = urllib.request.Request(
+        f"{LETTA_HOST}/v1/agents/{AGENT_ID}/messages",
+        data=body, headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=300) as r:
+        data = json.loads(r.read().decode())
+    msgs = data.get("messages", data if isinstance(data, list) else [])
+    parts = [m["content"] for m in msgs
+             if m.get("message_type") == "assistant_message" and m.get("content")]
+    return "\n".join(p.strip() for p in parts).strip()
+
+
+def _push(text: str, title: str):
     """Push via FCM to every device the Flutter app has registered. Each
     target is best-effort and independent: a stale/revoked token just gets
     logged and skipped (fcm.py doesn't try to prune it — Firebase will report
     it invalid on send, worth revisiting if that gets noisy), never blocks
-    the others or the job's own completion."""
+    the others or whatever triggered this push."""
     if not fcm.available():
         return
-    title = "Eva finished: " + job["kind"]
     for token in list_fcm_tokens():
         try:
             fcm.send(token, title, text)
@@ -256,6 +378,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path in ("/push/register", "/push/unregister"):
             return self._handle_push_registration()
+        if self.path == "/checkin/config":
+            return self._handle_checkin_config()
+        if self.path == "/checkin/trigger":
+            return self._handle_checkin_trigger()
         if self.path != "/jobs":
             return self._json(404, {"error": "not found"})
         try:
@@ -293,7 +419,53 @@ class Handler(BaseHTTPRequestHandler):
             remove_fcm_token(token)
         self._json(200, {"ok": True})
 
+    def _handle_checkin_config(self):
+        """Read-modify-write of the single check-in config row. Only touches
+        fields present in the request body; validated before anything's
+        written so a bad request never leaves a half-updated config."""
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            return self._json(400, {"error": "bad request body"})
+        fields = {}
+        if "enabled" in payload:
+            fields["enabled"] = 1 if payload["enabled"] else 0
+        if "interval_minutes" in payload:
+            try:
+                iv = int(payload["interval_minutes"])
+            except (TypeError, ValueError):
+                return self._json(400, {"error": "interval_minutes must be an integer"})
+            if iv < 15:
+                return self._json(400, {"error": "interval_minutes must be >= 15"})
+            fields["interval_minutes"] = iv
+        for key in ("quiet_start", "quiet_end"):
+            if key in payload:
+                v = payload[key]
+                if not isinstance(v, str) or not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", v):
+                    return self._json(400, {"error": f"{key} must be HH:MM (24h)"})
+                fields[key] = v
+        update_checkin_config(**fields)
+        self._json(200, get_checkin_config())
+
+    def _handle_checkin_trigger(self):
+        """Fire one check-in now, outside the schedule — Home Assistant
+        automations (or anything else) hit this. Dispatched on a thread and
+        answered immediately, same shape as job submission: this can take as
+        long as a full Letta turn, and callers like an HA rest_command
+        shouldn't be left hanging on that."""
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            payload = json.loads(self.rfile.read(length) or b"{}") if length else {}
+        except (ValueError, json.JSONDecodeError):
+            payload = {}
+        reason = (payload.get("reason") or "manual").strip()[:200]
+        threading.Thread(target=_do_checkin, args=(reason,), daemon=True).start()
+        self._json(202, {"ok": True, "dispatched": True})
+
     def do_GET(self):
+        if self.path == "/checkin/config":
+            return self._json(200, get_checkin_config())
         if self.path == "/jobs":
             return self._json(200, list_jobs())
         if self.path.startswith("/jobs?state="):
@@ -313,6 +485,7 @@ def main():
     init_db()
     prune_old_jobs()
     threading.Thread(target=_prune_loop, daemon=True).start()
+    threading.Thread(target=_checkin_loop, daemon=True).start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"eva-task-runner listening on {HOST}:{PORT} (agent={AGENT_ID or '?'})")
     server.serve_forever()

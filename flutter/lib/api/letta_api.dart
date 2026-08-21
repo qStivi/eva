@@ -46,6 +46,31 @@ class Passage {
   const Passage(this.id, this.text);
 }
 
+/// Eva's scheduled-check-in config, from eva-task-runner via eva-web's
+/// /api/checkin/config proxy (see eva-task-runner/runner.py).
+class CheckinConfig {
+  final bool enabled;
+  final int intervalMinutes;
+  final String quietStart; // "HH:MM"
+  final String quietEnd; // "HH:MM"
+  final double nextDueAt; // epoch seconds
+  const CheckinConfig({
+    required this.enabled,
+    required this.intervalMinutes,
+    required this.quietStart,
+    required this.quietEnd,
+    required this.nextDueAt,
+  });
+
+  factory CheckinConfig.fromJson(Map<String, dynamic> j) => CheckinConfig(
+        enabled: j['enabled'] == true || j['enabled'] == 1,
+        intervalMinutes: (j['interval_minutes'] as num).toInt(),
+        quietStart: j['quiet_start'] as String,
+        quietEnd: j['quiet_end'] as String,
+        nextDueAt: (j['next_due_at'] as num).toDouble(),
+      );
+}
+
 class LettaApi {
   final String baseUrl;
 
@@ -125,6 +150,35 @@ class LettaApi {
         .timeout(_slow);
     _ensureOk(r.statusCode, r.body);
     return parseReply(r.body);
+  }
+
+  Future<CheckinConfig> getCheckinConfig(String webBaseUrl, Map<String, String> webHeaders) async {
+    final url = Uri.parse('${webBaseUrl.replaceAll(RegExp(r'/+$'), '')}/api/checkin/config');
+    final r = await _client.get(url, headers: webHeaders).timeout(_quick);
+    _ensureOk(r.statusCode, r.body);
+    return CheckinConfig.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+  }
+
+  Future<CheckinConfig> setCheckinConfig(
+    String webBaseUrl,
+    Map<String, String> webHeaders, {
+    bool? enabled,
+    int? intervalMinutes,
+    String? quietStart,
+    String? quietEnd,
+  }) async {
+    final url = Uri.parse('${webBaseUrl.replaceAll(RegExp(r'/+$'), '')}/api/checkin/config');
+    final body = <String, dynamic>{
+      if (enabled != null) 'enabled': enabled,
+      if (intervalMinutes != null) 'interval_minutes': intervalMinutes,
+      if (quietStart != null) 'quiet_start': quietStart,
+      if (quietEnd != null) 'quiet_end': quietEnd,
+    };
+    final r = await _client
+        .post(url, headers: {..._jsonType, ...webHeaders}, body: jsonEncode(body))
+        .timeout(_quick);
+    _ensureOk(r.statusCode, r.body);
+    return CheckinConfig.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
   }
 
   /// Pure parser for a Letta /messages response. Mirrors eva-web's logic.
