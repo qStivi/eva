@@ -50,13 +50,17 @@ class Passage {
 /// /api/checkin/config proxy (see eva-task-runner/runner.py).
 class CheckinConfig {
   final bool enabled;
+  final String mode; // 'interval' or 'daily'
   final int intervalMinutes;
+  final String dailyTime; // "HH:MM"
   final String quietStart; // "HH:MM"
   final String quietEnd; // "HH:MM"
   final double nextDueAt; // epoch seconds
   const CheckinConfig({
     required this.enabled,
+    required this.mode,
     required this.intervalMinutes,
+    required this.dailyTime,
     required this.quietStart,
     required this.quietEnd,
     required this.nextDueAt,
@@ -64,7 +68,9 @@ class CheckinConfig {
 
   factory CheckinConfig.fromJson(Map<String, dynamic> j) => CheckinConfig(
         enabled: j['enabled'] == true || j['enabled'] == 1,
+        mode: (j['mode'] as String?) ?? 'interval',
         intervalMinutes: (j['interval_minutes'] as num).toInt(),
+        dailyTime: (j['daily_time'] as String?) ?? '18:00',
         quietStart: j['quiet_start'] as String,
         quietEnd: j['quiet_end'] as String,
         nextDueAt: (j['next_due_at'] as num).toDouble(),
@@ -163,14 +169,18 @@ class LettaApi {
     String webBaseUrl,
     Map<String, String> webHeaders, {
     bool? enabled,
+    String? mode,
     int? intervalMinutes,
+    String? dailyTime,
     String? quietStart,
     String? quietEnd,
   }) async {
     final url = Uri.parse('${webBaseUrl.replaceAll(RegExp(r'/+$'), '')}/api/checkin/config');
     final body = <String, dynamic>{
       if (enabled != null) 'enabled': enabled,
+      if (mode != null) 'mode': mode,
       if (intervalMinutes != null) 'interval_minutes': intervalMinutes,
+      if (dailyTime != null) 'daily_time': dailyTime,
       if (quietStart != null) 'quiet_start': quietStart,
       if (quietEnd != null) 'quiet_end': quietEnd,
     };

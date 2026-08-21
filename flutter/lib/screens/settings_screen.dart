@@ -43,7 +43,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController(text: widget.controller.chatPassword);
   final TextEditingController _quietStart = TextEditingController();
   final TextEditingController _quietEnd = TextEditingController();
+  final TextEditingController _dailyTime = TextEditingController();
   bool _quietInitialized = false;
+  bool _dailyTimeInitialized = false;
 
   EvaController get c => widget.controller;
 
@@ -54,9 +56,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _quietInitialized = true;
   }
 
+  void _maybeInitDailyTime(CheckinConfig cfg) {
+    if (_dailyTimeInitialized) return;
+    _dailyTime.text = cfg.dailyTime;
+    _dailyTimeInitialized = true;
+  }
+
   void _saveQuietHours() {
     if (!_kHhMm.hasMatch(_quietStart.text) || !_kHhMm.hasMatch(_quietEnd.text)) return;
     c.setCheckinQuietHours(_quietStart.text, _quietEnd.text);
+  }
+
+  void _saveDailyTime() {
+    if (!_kHhMm.hasMatch(_dailyTime.text)) return;
+    c.setCheckinDailyTime(_dailyTime.text);
   }
 
   void _reconnect() => c.reconfigure(
@@ -77,6 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _chatPassword.dispose();
     _quietStart.dispose();
     _quietEnd.dispose();
+    _dailyTime.dispose();
     super.dispose();
   }
 
@@ -260,6 +274,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
     _maybeInitQuietHours(cfg);
+    _maybeInitDailyTime(cfg);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -278,25 +293,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(vertical: EvaSpace.s3),
             child: Row(
               children: [
-                const Expanded(child: Text('How often', style: TextStyle(fontSize: EvaType.base))),
-                DropdownButton<int>(
-                  value: _kCheckinIntervals.contains(cfg.intervalMinutes)
-                      ? cfg.intervalMinutes
-                      : _kCheckinIntervals.first,
+                const Expanded(child: Text('When', style: TextStyle(fontSize: EvaType.base))),
+                DropdownButton<String>(
+                  value: cfg.mode,
                   underline: const SizedBox.shrink(),
-                  items: [
-                    for (final m in _kCheckinIntervals)
-                      DropdownMenuItem(value: m, child: Text('every ${_intervalLabel(m)}')),
+                  items: const [
+                    DropdownMenuItem(value: 'interval', child: Text('every N hours')),
+                    DropdownMenuItem(value: 'daily', child: Text('once a day')),
                   ],
                   onChanged: c.checkinBusy
                       ? null
                       : (v) {
-                          if (v != null) c.setCheckinInterval(v);
+                          if (v != null) c.setCheckinMode(v);
                         },
                 ),
               ],
             ),
           ),
+          const Divider(height: 1),
+          if (cfg.mode == 'daily')
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: EvaSpace.s3),
+              child: Row(
+                children: [
+                  const Expanded(child: Text('At', style: TextStyle(fontSize: EvaType.base))),
+                  SizedBox(
+                    width: 90,
+                    child: TextField(
+                      controller: _dailyTime,
+                      textAlign: TextAlign.end,
+                      autocorrect: false,
+                      decoration: const InputDecoration(hintText: 'HH:MM'),
+                      onSubmitted: (_) => _saveDailyTime(),
+                      onTapOutside: (_) => _saveDailyTime(),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: EvaSpace.s3),
+              child: Row(
+                children: [
+                  const Expanded(child: Text('How often', style: TextStyle(fontSize: EvaType.base))),
+                  DropdownButton<int>(
+                    value: _kCheckinIntervals.contains(cfg.intervalMinutes)
+                        ? cfg.intervalMinutes
+                        : _kCheckinIntervals.first,
+                    underline: const SizedBox.shrink(),
+                    items: [
+                      for (final m in _kCheckinIntervals)
+                        DropdownMenuItem(value: m, child: Text('every ${_intervalLabel(m)}')),
+                    ],
+                    onChanged: c.checkinBusy
+                        ? null
+                        : (v) {
+                            if (v != null) c.setCheckinInterval(v);
+                          },
+                  ),
+                ],
+              ),
+            ),
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: EvaSpace.s3),

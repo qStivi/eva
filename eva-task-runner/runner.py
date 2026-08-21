@@ -99,18 +99,28 @@ def init_db():
                 added_at REAL NOT NULL
             )
         """)
-        # Single-row config for scheduled check-ins. quiet_start/quiet_end are
-        # "HH:MM" 24h local time, wrapping midnight if start > end.
+        # Single-row config for scheduled check-ins. quiet_start/quiet_end/
+        # daily_time are "HH:MM" 24h local time; quiet hours wrap midnight if
+        # start > end. mode picks which of interval_minutes/daily_time is used.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS checkin_config (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 enabled INTEGER NOT NULL DEFAULT 0,
+                mode TEXT NOT NULL DEFAULT 'interval' CHECK (mode IN ('interval', 'daily')),
                 interval_minutes INTEGER NOT NULL DEFAULT 240,
+                daily_time TEXT NOT NULL DEFAULT '18:00',
                 quiet_start TEXT NOT NULL DEFAULT '22:00',
                 quiet_end TEXT NOT NULL DEFAULT '08:00',
                 last_checkin_at REAL NOT NULL DEFAULT 0
             )
         """)
+        # ALTER TABLE ADD COLUMN for anyone with an existing DB from before mode/
+        # daily_time existed — CREATE TABLE IF NOT EXISTS doesn't retrofit columns.
+        for col_sql in ("mode TEXT NOT NULL DEFAULT 'interval'", "daily_time TEXT NOT NULL DEFAULT '18:00'"):
+            try:
+                conn.execute(f"ALTER TABLE checkin_config ADD COLUMN {col_sql}")
+            except sqlite3.OperationalError:
+                pass  # already has it
         conn.execute("INSERT OR IGNORE INTO checkin_config (id) VALUES (1)")
 
 
@@ -136,8 +146,30 @@ def get_checkin_config() -> dict:
     with _db_lock, _db() as conn:
         row = conn.execute("SELECT * FROM checkin_config WHERE id = 1").fetchone()
     cfg = dict(row)
-    cfg["next_due_at"] = cfg["last_checkin_at"] + cfg["interval_minutes"] * 60
+    cfg["next_due_at"] = _next_due_at(cfg)
     return cfg
+
+
+def _next_due_at(cfg: dict) -> float:
+    """When the next check-in is due, epoch seconds. Interval mode is simple
+    arithmetic; daily mode anchors to a wall-clock time — "today's slot" if
+    it hasn't happened yet (or was due but hasn't fired — e.g. the service was
+    down at 18:00), otherwise tomorrow's."""
+    if cfg["mode"] != "daily":
+        return cfg["last_checkin_at"] + cfg["interval_minutes"] * 60
+    try:
+        hh, mm = (int(x) for x in cfg["daily_time"].split(":"))
+    except (ValueError, AttributeError):
+        hh, mm = 18, 0
+    now = datetime.datetime.now()
+    target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    last = cfg["last_checkin_at"]
+    last_dt = datetime.datetime.fromtimestamp(last) if last else None
+    fired_today_at_or_after_target = (
+        last_dt is not None and last_dt.date() == now.date() and last_dt >= target)
+    if now < target or fired_today_at_or_after_target:
+        return (target if now < target else target + datetime.timedelta(days=1)).timestamp()
+    return target.timestamp()  # target already passed today and hasn't fired yet — due now
 
 
 def update_checkin_config(**fields):
@@ -431,6 +463,10 @@ class Handler(BaseHTTPRequestHandler):
         fields = {}
         if "enabled" in payload:
             fields["enabled"] = 1 if payload["enabled"] else 0
+        if "mode" in payload:
+            if payload["mode"] not in ("interval", "daily"):
+                return self._json(400, {"error": "mode must be 'interval' or 'daily'"})
+            fields["mode"] = payload["mode"]
         if "interval_minutes" in payload:
             try:
                 iv = int(payload["interval_minutes"])
@@ -439,7 +475,7 @@ class Handler(BaseHTTPRequestHandler):
             if iv < 15:
                 return self._json(400, {"error": "interval_minutes must be >= 15"})
             fields["interval_minutes"] = iv
-        for key in ("quiet_start", "quiet_end"):
+        for key in ("quiet_start", "quiet_end", "daily_time"):
             if key in payload:
                 v = payload[key]
                 if not isinstance(v, str) or not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", v):

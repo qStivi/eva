@@ -290,13 +290,17 @@ class EvaController extends ChangeNotifier {
   }
 
   Future<void> setCheckinEnabled(bool enabled) => _updateCheckin(enabled: enabled);
+  Future<void> setCheckinMode(String mode) => _updateCheckin(mode: mode);
   Future<void> setCheckinInterval(int minutes) => _updateCheckin(intervalMinutes: minutes);
+  Future<void> setCheckinDailyTime(String time) => _updateCheckin(dailyTime: time);
   Future<void> setCheckinQuietHours(String start, String end) =>
       _updateCheckin(quietStart: start, quietEnd: end);
 
   Future<void> _updateCheckin({
     bool? enabled,
+    String? mode,
     int? intervalMinutes,
+    String? dailyTime,
     String? quietStart,
     String? quietEnd,
   }) async {
@@ -310,7 +314,9 @@ class EvaController extends ChangeNotifier {
         settings.webBaseUrl,
         settings.webHeaders,
         enabled: enabled,
+        mode: mode,
         intervalMinutes: intervalMinutes,
+        dailyTime: dailyTime,
         quietStart: quietStart,
         quietEnd: quietEnd,
       );
