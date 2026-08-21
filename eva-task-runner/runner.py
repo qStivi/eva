@@ -20,8 +20,12 @@ matching eva-web/toolset_router.py's posture. Config via environment (see
   EVA_RUNNER_PORT    default 8286
   LETTA_HOST         default http://localhost:8283
   EVA_AGENT_ID       Letta agent id results get injected into
-  NTFY_URL           optional; if unset, push notification is a no-op (ntfy
-                     itself isn't stood up yet — see the plan's Phase 1 note)
+  NTFY_URL           optional; if unset, push notification is a no-op. Points
+                     at the self-hosted ntfy topic, e.g.
+                     https://ntfy.qstivi.com/eva-jobs-xxxx
+  NTFY_TOKEN         optional; ntfy access token for NTFY_URL's topic (our
+                     ntfy denies anonymous access, so this is required in
+                     practice whenever NTFY_URL is set)
   RETENTION_DAYS     default 30; finished (done/failed) jobs older than this
                      get pruned on startup and every 6h thereafter
 """
@@ -44,6 +48,7 @@ HOST = "127.0.0.1"  # loopback only, always — see module docstring
 LETTA_HOST = os.environ.get("LETTA_HOST", "http://localhost:8283").rstrip("/")
 AGENT_ID = os.environ.get("EVA_AGENT_ID", "")
 NTFY_URL = os.environ.get("NTFY_URL", "")
+NTFY_TOKEN = os.environ.get("NTFY_TOKEN", "")
 RETENTION_DAYS = float(os.environ.get("RETENTION_DAYS", "30"))
 PRUNE_INTERVAL_S = 6 * 3600
 
@@ -180,14 +185,16 @@ def _inject(text: str):
 
 
 def _notify(job: dict, text: str):
-    """Push via ntfy — a no-op until the ntfy container from the plan exists.
-    Kept as a real (if unused) call site so wiring it up later is a one-line
-    NTFY_URL change, not new code."""
+    """Push via our self-hosted ntfy (ntfy.qstivi.com, behind the eva Cloudflare
+    tunnel). No-op if NTFY_URL isn't set."""
     if not NTFY_URL:
         return
     title = "Eva finished: " + job["kind"]
+    headers = {"Title": title}
+    if NTFY_TOKEN:
+        headers["Authorization"] = "Bearer " + NTFY_TOKEN
     req = urllib.request.Request(NTFY_URL, data=text[:400].encode(), method="POST",
-                                 headers={"Title": title})
+                                 headers=headers)
     with urllib.request.urlopen(req, timeout=10):
         pass
 
