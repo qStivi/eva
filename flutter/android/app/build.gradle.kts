@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.qstivi.eva"
+    namespace = "com.qstivi.eva"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "io.github.qstivi.eva"
+        applicationId = "com.qstivi.eva"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
