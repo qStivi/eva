@@ -25,6 +25,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController(text: widget.controller.accessClientId);
   late final TextEditingController _accessSecret =
       TextEditingController(text: widget.controller.accessClientSecret);
+  late final TextEditingController _chatUser =
+      TextEditingController(text: widget.controller.chatUser);
+  late final TextEditingController _chatPassword =
+      TextEditingController(text: widget.controller.chatPassword);
 
   EvaController get c => widget.controller;
 
@@ -32,6 +36,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _server.text,
         accessClientId: _accessId.text,
         accessClientSecret: _accessSecret.text,
+        chatUser: _chatUser.text,
+        chatPassword: _chatPassword.text,
       );
 
   @override
@@ -40,6 +46,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _server.dispose();
     _accessId.dispose();
     _accessSecret.dispose();
+    _chatUser.dispose();
+    _chatPassword.dispose();
     super.dispose();
   }
 
@@ -143,6 +151,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
             labelText: 'Eva server',
             hintText: 'https://eva.qstivi.com  ·  LAN: http://<PC-IP>:8283',
           ),
+          onSubmitted: (_) => _reconnect(),
+        ),
+        const SizedBox(height: EvaSpace.s2),
+        // eva-web's own login — chat always goes through eva-web now (not
+        // straight to Letta) so it gets the same toolset/model routing the
+        // browser UI has. Not optional the way Access is: without this,
+        // every send fails with 401. Username defaults to eva-web's own
+        // default ("eva"); password has no sane default, always shown.
+        TextField(
+          controller: _chatUser,
+          autocorrect: false,
+          decoration: const InputDecoration(labelText: 'eva-web username'),
+          onSubmitted: (_) => _reconnect(),
+        ),
+        const SizedBox(height: EvaSpace.s2),
+        TextField(
+          controller: _chatPassword,
+          autocorrect: false,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: 'eva-web password'),
           onSubmitted: (_) => _reconnect(),
         ),
         // Cloudflare Access token — only needed for the public tunnel. Tucked away

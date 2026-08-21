@@ -1,7 +1,11 @@
 // LettaApi — a thin client for the local Letta server (the real Eva backend).
-// The app talks to Letta directly (configurable base URL). Parsing of a turn's
-// reply mirrors eva-web/app.py:letta_send() — collect assistant_message content,
-// surface tool_call names, ignore reasoning. parseReply is pure + unit-tested.
+// Most calls (memory, models, archival) go straight to Letta (configurable base
+// URL) since they don't need any routing. Chat messages go through eva-web's
+// /api/chat instead (sendMessageViaWeb) — see EvaSettings.webBaseUrl/webHeaders
+// and eva-web/app.py's docstring for why. parseReply mirrors
+// eva-web/app.py:letta_send()'s own parsing of Letta's raw message list and is
+// still used by sendMessage (kept for direct-to-Letta testing/fallback) — pure
+// and unit-tested.
 
 import 'dart:convert';
 
@@ -86,6 +90,27 @@ class LettaApi {
             modelHandle: (a['llm_config'] is Map) ? a['llm_config']['handle'] as String? : null,
           ),
     ];
+  }
+
+  /// Send one user turn through eva-web's /api/chat instead of straight to
+  /// Letta. eva-web applies lazy-toolset preloading + cost-tiered model
+  /// routing before forwarding to Letta — the same treatment its browser UI
+  /// already gets (see eva-web/app.py's docstring) — then returns the reply
+  /// in its own shape, not Letta's raw message list. [webBaseUrl] and
+  /// [webHeaders] come from EvaSettings.
+  Future<LettaReply> sendMessageViaWeb(
+      String webBaseUrl, Map<String, String> webHeaders, String text) async {
+    final url = Uri.parse('${webBaseUrl.replaceAll(RegExp(r'/+$'), '')}/api/chat');
+    final r = await _client
+        .post(url, headers: {..._jsonType, ...webHeaders}, body: jsonEncode({'message': text}))
+        .timeout(_slow);
+    _ensureOk(r.statusCode, r.body);
+    final decoded = jsonDecode(r.body);
+    if (decoded is! Map) throw const LettaException('unexpected /api/chat response shape');
+    if (decoded['error'] != null) throw LettaException(decoded['error'].toString());
+    final reply = (decoded['reply'] as String?) ?? '(no reply)';
+    final tools = ((decoded['tools'] as List?) ?? const []).cast<String>();
+    return LettaReply(reply, tools);
   }
 
   Future<LettaReply> sendMessage(String agentId, String text) async {

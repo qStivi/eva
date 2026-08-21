@@ -59,6 +59,8 @@ class EvaController extends ChangeNotifier {
   String get serverUrl => _settings?.serverUrl ?? kDefaultServerUrl;
   String get accessClientId => _settings?.accessClientId ?? '';
   String get accessClientSecret => _settings?.accessClientSecret ?? '';
+  String get chatUser => _settings?.chatUser ?? 'eva';
+  String get chatPassword => _settings?.chatPassword ?? '';
   String get agentName => _agentName;
 
   final StreamController<String> _toasts = StreamController<String>.broadcast();
@@ -235,13 +237,20 @@ class EvaController extends ChangeNotifier {
   }
 
   /// Point at a different server URL (Settings) and reconnect. Optionally updates
-  /// the Cloudflare Access service-token pair used for public-tunnel access.
-  Future<void> reconfigure(String url, {String? accessClientId, String? accessClientSecret}) async {
+  /// the Cloudflare Access service-token pair used for public-tunnel access, and
+  /// eva-web's own Basic-auth credentials (used for every chat send, LAN or tunnel).
+  Future<void> reconfigure(String url,
+      {String? accessClientId,
+      String? accessClientSecret,
+      String? chatUser,
+      String? chatPassword}) async {
     final settings = _settings;
     if (settings == null) return; // mock-only build
     settings.serverUrl = url.trim();
     if (accessClientId != null) settings.accessClientId = accessClientId.trim();
     if (accessClientSecret != null) settings.accessClientSecret = accessClientSecret.trim();
+    if (chatUser != null) settings.chatUser = chatUser.trim();
+    if (chatPassword != null) settings.chatPassword = chatPassword.trim();
     settings.agentId = null;
     _agentId = null;
     await settings.save();
@@ -435,7 +444,8 @@ class EvaController extends ChangeNotifier {
   Future<void> _sendLive(String userText, int myTurn) async {
     final before = memories.length;
     try {
-      final reply = await _api!.sendMessage(_agentId!, userText);
+      final reply = await _api!.sendMessageViaWeb(
+          _settings!.webBaseUrl, _settings!.webHeaders, userText);
       if (_disposed || myTurn != _turn) return; // disposed, cancelled, or superseded
       _runTypewriter(reply.text, EvaMood.neutral, false, () async {
         await _loadMemory();

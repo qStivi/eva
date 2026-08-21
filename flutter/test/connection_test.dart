@@ -59,15 +59,9 @@ class FakeLetta {
         if (path.contains('/archival-memory')) {
           return http.Response(jsonEncode([]), 200);
         }
-        if (path.endsWith('/messages') && req.method == 'POST') {
+        if (path == '/api/chat' && req.method == 'POST') {
           messageCalls++;
-          return http.Response(
-              jsonEncode({
-                'messages': [
-                  {'message_type': 'assistant_message', 'content': 'Hey.'}
-                ]
-              }),
-              200);
+          return http.Response(jsonEncode({'reply': 'Hey.', 'tools': []}), 200);
         }
         return http.Response('not found', 404);
       });
@@ -185,7 +179,7 @@ void main() {
             return http.Response(jsonEncode([{'label': 'human', 'value': 'x'}]), 200);
           }
           if (p.contains('/archival-memory')) return http.Response('[]', 200);
-          if (p.endsWith('/messages')) return gate.future; // hangs until we release it
+          if (p == '/api/chat') return gate.future; // hangs until we release it
           return http.Response('{}', 200);
         }),
       );
@@ -204,13 +198,7 @@ void main() {
       // The hung reply lands late; the turn guard must drop it (no re-block, no
       // stray Eva message from the abandoned turn).
       final evaBefore = c.messages.where((m) => m.from == Speaker.eva).length;
-      gate.complete(http.Response(
-          jsonEncode({
-            'messages': [
-              {'message_type': 'assistant_message', 'content': 'too late'}
-            ]
-          }),
-          200));
+      gate.complete(http.Response(jsonEncode({'reply': 'too late', 'tools': []}), 200));
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(c.busy, isFalse);
       expect(c.messages.where((m) => m.from == Speaker.eva).length, evaBefore);
