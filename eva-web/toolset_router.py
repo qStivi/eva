@@ -49,6 +49,16 @@ def _api(host, method, path):
     return json.loads(body) if body else None
 
 
+# Per-agent memory of the last "wanted" (non-core) tool set actually applied, so a run
+# of plain-conversation turns after cleanup doesn't keep re-hitting Letta to confirm
+# there's nothing left to detach. Reset on process restart — assumes a fresh eva-web
+# starts from a clean (core-only) agent state, per register-toolsets.sh; if a prior
+# process left a toolset attached and eva-web restarts mid-session, that group won't
+# get cleaned up until it's matched again. Harmless (a spare tool costs little), just
+# not tidy.
+_last_want = {}
+
+
 def preload_for(message, agent_id, host="http://localhost:8283", ts=None):
     """Attach the groups the message implies, detach the other managed groups.
 
@@ -56,12 +66,15 @@ def preload_for(message, agent_id, host="http://localhost:8283", ts=None):
     """
     ts = ts or load_toolsets()
     groups = ts["groups"]
-    managed = sorted({t for tools in groups.values() for t in tools})
     hits = match_groups(message, ts)
     want = set()
     for g in hits:
         want.update(groups.get(g, []))
 
+    if not want and not _last_want.get(agent_id):
+        return hits  # nothing to attach and nothing lingering to clean up: skip the round-trips
+
+    managed = sorted({t for tools in groups.values() for t in tools})
     id_by_name = {t["name"]: t["id"]
                   for t in (_api(host, "GET", "/v1/tools/?limit=300") or [])
                   if t.get("name") and t.get("id")}
@@ -74,6 +87,7 @@ def preload_for(message, agent_id, host="http://localhost:8283", ts=None):
     for tn in sorted(want):
         if tn not in attached and tn in id_by_name:
             _api(host, "PATCH", "/v1/agents/%s/tools/attach/%s" % (agent_id, id_by_name[tn]))
+    _last_want[agent_id] = frozenset(want)
     return hits
 
 
