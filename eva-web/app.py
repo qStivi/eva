@@ -81,6 +81,15 @@ try:
 except Exception:  # noqa: BLE001
     situational_context = None
 
+try:
+    # Keyword search over Eva's own past messages, refreshed into the
+    # conversation_recall block before every send — see recall.py and the
+    # "Conversational recall" section of the same spec above. Best-effort,
+    # same posture as situational_context.
+    import recall
+except Exception:  # noqa: BLE001
+    recall = None
+
 
 def _refresh_situational_context():
     if situational_context is None or not AGENT_ID:
@@ -90,6 +99,42 @@ def _refresh_situational_context():
     except Exception:  # noqa: BLE001 — a bad field must never block the chat
         return
     url = f"{LETTA_HOST}/v1/agents/{AGENT_ID}/core-memory/blocks/situational_context"
+    req = urllib.request.Request(
+        url, data=json.dumps({"value": value}).encode(),
+        headers={"Content-Type": "application/json"}, method="PATCH",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=6):
+            pass
+    except Exception:  # noqa: BLE001 — best-effort; the block just stays stale this turn
+        pass
+
+
+def _fetch_agent_state():
+    """One GET that gives both message_ids (the live context window — recall's
+    'already in context, don't repeat it' check) and blocks (human/persona
+    text — recall's 'probably already in permanent memory' check), so
+    _refresh_conversation_recall costs one extra request, not two."""
+    req = urllib.request.Request(f"{LETTA_HOST}/v1/agents/{AGENT_ID}")
+    with urllib.request.urlopen(req, timeout=6) as r:
+        return json.loads(r.read().decode())
+
+
+def _refresh_conversation_recall(message: str):
+    if recall is None or not AGENT_ID or not message:
+        return
+    try:
+        state = _fetch_agent_state()
+        block_texts = [b.get("value", "") for b in (state.get("blocks") or [])
+                        if b.get("label") in ("human", "persona")]
+        value = recall.build(LETTA_HOST, AGENT_ID, message,
+                              state.get("message_ids") or [], block_texts)
+    except Exception:  # noqa: BLE001 — a bad search must never block the chat
+        return
+    if not value:
+        return  # recall.build returns "" specifically for "too trivial to search" —
+        # leave the block as whatever it last said, don't blank it out for this turn
+    url = f"{LETTA_HOST}/v1/agents/{AGENT_ID}/core-memory/blocks/conversation_recall"
     req = urllib.request.Request(
         url, data=json.dumps({"value": value}).encode(),
         headers={"Content-Type": "application/json"}, method="PATCH",
@@ -157,6 +202,7 @@ def _build_trace(msgs: list) -> list:
 def letta_send(message: str):
     """Send one user turn to Letta; return (reply_text, [tool_names], usage, trace, elapsed_s)."""
     _refresh_situational_context()
+    _refresh_conversation_recall(message)
     url = f"{LETTA_HOST}/v1/agents/{AGENT_ID}/messages"
     body = json.dumps({"messages": [{"role": "user", "content": message}]}).encode()
     req = urllib.request.Request(

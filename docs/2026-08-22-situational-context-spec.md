@@ -10,14 +10,15 @@ fabricate fake Spotify/Steam data, then use her own `memory_insert`/
 `read_only` makes that tool call fail cleanly instead, while eva-web's own
 refresh (the agent-scoped `PATCH /v1/agents/{id}/core-memory/blocks/{label}`
 admin path) is unaffected by the flag and keeps working. The **conversational
-recall** section below is still just a design, not built. One of several
-specs from the same session — see also
-[timers/reminders](2026-08-22-timers-reminders-spec.md) (built),
+recall** section below is now also **built** — `eva-web/recall.py`, same
+choke point, own `conversation_recall` block (also `read_only`, also
+created via `scripts/create-situational-context-block.sh`), local JSON cache
+under `~/.config/eva-web/recall_cache/` so it's not re-scanning the whole
+message log every turn. One of several specs from the same session — see
+also [timers/reminders](2026-08-22-timers-reminders-spec.md) (built),
 [tool-discovery](2026-08-22-tool-discovery-spec.md) (built),
 [tool-trace transparency](2026-08-22-tool-trace-transparency-spec.md) (built),
-and [admin panel](2026-08-22-eva-admin-panel-spec.md). Extended same-day
-(still 2026-08-22) to add conversational recall, below — same
-ephemeral-per-turn pattern, different source._
+and [admin panel](2026-08-22-eva-admin-panel-spec.md)._
 
 ## The idea, in one line
 
