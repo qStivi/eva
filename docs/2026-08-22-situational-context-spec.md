@@ -49,7 +49,7 @@ the model to read naturally, consistent with how the persona block reads).
 | Weather | HA (weather entity, already integrated) | reuse the existing Letta→HA MCP path, or pull it server-side in eva-web directly — cheaper to do server-side than via a tool call |
 | Location | HA `device_tracker`/`person` entity | named zone if inside a configured HA zone, otherwise generic "out and about" (deliberately not raw coordinates — privacy-conscious default, matches the "just on the go" framing from the original ask) |
 | Spotify now-playing | needs a live source — **not yet confirmed** | HA's Spotify integration may expose current track as a media_player entity; confirm before assuming this is free |
-| Steam activity | needs a live source — **not yet confirmed** | not in HA by default; likely the Steam Web API directly (`ISteamUser/GetPlayerSummaries` gives "currently playing" for a public/friends-visible profile) — separate integration, own API key |
+| Steam activity | **HA has it** (confirmed 2026-08-22) | user checked — HA already exposes what's needed, no separate Steam Web API integration required. Confirm the exact entity/attribute at build time. |
 
 Two fields (Spotify, Steam) need a source confirmed before this is buildable
 end-to-end — see open questions below. Time/date/weather/location can ship
@@ -74,10 +74,9 @@ first as a smaller v1 if the other two need more research.
   that's queryable without user-specific OAuth juggling on eva-web's side, or
   does this need Spotify's own Web API with its own token flow? Check the HA
   integration first — reusing infra beats a second OAuth dance.
-- **Steam:** confirm the Steam Web API key + SteamID64 needed for
-  `GetPlayerSummaries`, and that the profile's "currently playing" visibility
-  is actually public/queryable (privacy settings can hide it even from a
-  logged-in-as-owner key in some configurations — verify, don't assume).
+- **Steam:** confirmed available via HA (no separate Steam Web API needed) —
+  identify the exact entity id and which attribute carries "currently
+  playing" at build time.
 - **Weather:** which HA weather entity/integration is actually configured —
   confirm the entity id and what fields it exposes (condition, temp) before
   writing the formatter.
