@@ -88,3 +88,26 @@ within the same turn, which the looping capability now supports.
   only reach for embeddings if real usage shows it's too weak.
 - Whether `search_tools` results should be capped/ranked, given the registry
   will keep growing (timers' `create_timer`, future tools, etc.).
+
+## Follow-up (2026-08-22, building Phase 2): the model still calls gated
+tools directly, not through `call_tool`
+
+Confirmed live, twice, testing `delegate_to_harness`: Eva sometimes calls a
+gated tool **by name directly** — skipping `call_tool` entirely, even right
+after `search_tools` found it — and gets Letta's own `ToolConstraintError`.
+The error's own message ("Cannot call X, valid tools include: [...]") gave
+her nothing to self-correct from; she read it as "the tool is broken" and
+told Stephan so, offering a manual workaround instead of retrying correctly.
+
+**Fix, live 2026-08-22:** a local patch to Letta's own error builder
+(`_build_rule_violation_result` in `letta/agents/helpers.py`) — bind-mounted
+via `~/.config/letta/helpers.py` (not checked into this repo; same pattern
+as `openai_client.py`/`url_validation.py`, see `letta.container`'s Volume=
+lines). Whenever a rejected tool isn't a real *rule* violation (no
+`hint_lines` from Letta's own `ToolRulesSolver`) and `call_tool`/`search_tools`
+are both in the agent's valid set, appends a hint pointing straight at
+`call_tool(name=..., args={...})`. General — not hardcoded to
+`delegate_to_harness`, applies to any gated tool. Verified the patched logic
+renders correctly and confirmed the container is running the patched file;
+not yet confirmed end-to-end through a real agent turn (LM Studio, the local
+model backend, was down at the time — unrelated to this patch).
