@@ -1,9 +1,13 @@
 # Situational context ("meta context") — spec
 
-_Design session, 2026-08-22. Not yet built. One of three specs from the same
-session — see also
-[timers/reminders](2026-08-22-timers-reminders-spec.md) and
-[tool-discovery](2026-08-22-tool-discovery-spec.md)._
+_Design session, 2026-08-22. Not yet built. One of several specs from the
+same session — see also
+[timers/reminders](2026-08-22-timers-reminders-spec.md) (built),
+[tool-discovery](2026-08-22-tool-discovery-spec.md) (built),
+[tool-trace transparency](2026-08-22-tool-trace-transparency-spec.md), and
+[admin panel](2026-08-22-eva-admin-panel-spec.md). Extended same-day (still
+2026-08-22) to add conversational recall, below — same ephemeral-per-turn
+pattern, different source._
 
 ## The idea, in one line
 
@@ -11,9 +15,10 @@ Every time Eva receives *anything* — a message from you, a check-in nudge, a
 timer firing, an HA-triggered check-in — she should also see a small bundle of
 live situational facts: current time, date, day of week, weather, your phone's
 location (named if it's somewhere you've configured in HA, otherwise just "out
-and about"), what's playing on Spotify, what's running on Steam. This needs to
-be **ephemeral** — visible for that turn, refreshed before the next one, and
-never written into the permanent conversation transcript.
+and about"), what's playing on Spotify, what's running on Steam, **and now
+also: relevant snippets from old conversations, pulled fresh each message.**
+This needs to be **ephemeral** — visible for that turn, refreshed before the
+next one, and never written into the permanent conversation transcript.
 
 ## Why a core memory block, not a chat message
 
@@ -68,10 +73,84 @@ separate integration or API key. This can ship as one build, not staged.
   message from going through — the chat has to keep working even if the
   weather doesn't.
 
-## Open questions for build time
+## Conversational recall (added same-day, after the tool-discovery debugging)
 
-All five source fields are now confirmed (see table above) — nothing left to
-research on the "does the data exist" front. What's left is build mechanics:
+The original idea behind this whole feature: a semantic search over Eva's
+*own past conversations* should run automatically on every incoming message,
+surfacing relevant old context ("we talked about this 3 weeks ago") the same
+ephemeral way as the HA fields above — not something she has to think to go
+looking for.
+
+**What already exists is close but not this.** Eva already has
+`conversation_search` (core-attached), a genuine hybrid text+semantic search
+over her full message history — but it's on-demand, a tool she has to decide
+to call. There's no automatic per-message trigger today, and building one
+turned out to hit real constraints, checked directly against this
+self-hosted instance on 2026-08-22:
+
+- Letta's dedicated search API (`POST /v1/messages/search`,
+  `POST /v1/agents/messages/search`) is explicitly **cloud-only** — confirmed
+  live: `{"detail":"Message search requires message embedding, OpenAI, and
+  Turbopuffer to be enabled."}`. Not available to a self-hosted deployment
+  without standing up Turbopuffer (a separate vector DB) and real OpenAI
+  embeddings, neither of which Eva's stack uses (LM Studio, local).
+- `conversation_search` the *tool* has no callable source of its own — its
+  registry entry is a true Letta-internal built-in (`tool_type: letta_core`,
+  `source_code: None`). It can't be dispatched the way `call_tool` dispatches
+  our own custom tools or HA's MCP tools (there's no `/v1/tools/run`-style
+  standalone path for a `letta_core` tool) — the only way to invoke the real
+  implementation is through an actual agentic turn, which defeats the point
+  of a cheap pre-turn ephemeral lookup.
+
+**Practical approach:** eva-web does its own lightweight recall search
+directly against the full message log (`GET /v1/agents/{id}/messages`,
+already proven and already used for the app's `history()`), scoring by
+keyword/text overlap — same simple approach `search_tools` already uses for
+tool matching, not true vector embeddings. Loses semantic nuance compared to
+what a real embedding search would give, but needs no new infrastructure and
+matches this codebase's existing stdlib-only, no-new-dependency posture.
+Worth revisiting with real embeddings later only if keyword matching proves
+too weak in practice — not worth the Turbopuffer/OpenAI dependency up front.
+
+### Deduplication (the specific ask: don't repeat what she already has)
+
+Two layers, of different reliability:
+
+1. **Exact and cheap: the agent's live context window.** An agent's current
+   `AgentState` carries a `message_ids` list — the actual set of messages
+   presently in Eva's working context (confirmed directly today, watching it
+   shrink to one entry after a `reset-messages` call). Any recall candidate
+   whose message_id is already in that set gets dropped outright — it's
+   already right there, repeating it would be pure waste.
+2. **Fuzzy and best-effort: the memory blocks.** Eva's agent has
+   `enable_sleeptime: true` (confirmed 2026-08-22) — a background companion
+   agent reviews recent messages every 5 turns and can fold facts into the
+   persona/human blocks on its own. If a fact already made it in there,
+   surfacing it again from raw history is redundant even though it's not
+   technically in the live context window. Checking for this precisely isn't
+   possible without real semantic comparison; a workable approximation is a
+   keyword-overlap check against the current block text, skip a candidate
+   that scores high enough. Flag as approximate in the block itself if it
+   ships — "trust but verify," not authoritative deduplication.
+
+### Open questions specific to recall
+
+- **Cost of scanning full history every message.** As the log grows (already
+  227+ messages before today's reset), doing a keyword pass over the whole
+  thing per incoming message needs a sanity check — cache/index locally in
+  eva-web rather than re-fetching+rescoring from scratch every single time,
+  most likely.
+- **How many results, and how prominent.** Unlike the HA fields (fixed,
+  small, always relevant), recall results are variable — zero hits is the
+  common case for an ordinary message. The block should render nothing (or
+  near-nothing) when there's genuinely nothing relevant, not force a
+  low-confidence match in just to fill the section.
+
+## Open questions for build time (situational fields)
+
+All five HA-sourced fields are now confirmed (see table above) — nothing left
+to research on the "does the data exist" front. What's left is build
+mechanics:
 
 - **How eva-web reads HA state.** Two options: reuse the same `GetLiveContext`
   MCP path proven above (one call gets everything in one shot, but returns
