@@ -1,13 +1,16 @@
 # Situational context ("meta context") — spec
 
-_Design session, 2026-08-22. Not yet built. One of several specs from the
-same session — see also
+_Design session, 2026-08-22. The HA-fields half (below, up to "Conversational
+recall") is now **built** — `eva-web/situational_context.py`, wired into
+`letta_send`'s single choke point, block created+attached to both `eva` and
+`eva-spike`. The **conversational recall** section is still just a design,
+not built. One of several specs from the same session — see also
 [timers/reminders](2026-08-22-timers-reminders-spec.md) (built),
 [tool-discovery](2026-08-22-tool-discovery-spec.md) (built),
-[tool-trace transparency](2026-08-22-tool-trace-transparency-spec.md), and
-[admin panel](2026-08-22-eva-admin-panel-spec.md). Extended same-day (still
-2026-08-22) to add conversational recall, below — same ephemeral-per-turn
-pattern, different source._
+[tool-trace transparency](2026-08-22-tool-trace-transparency-spec.md) (built),
+and [admin panel](2026-08-22-eva-admin-panel-spec.md). Extended same-day
+(still 2026-08-22) to add conversational recall, below — same
+ephemeral-per-turn pattern, different source._
 
 ## The idea, in one line
 

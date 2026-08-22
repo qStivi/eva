@@ -71,6 +71,35 @@ try:
 except Exception:  # noqa: BLE001
     model_router = None
 
+try:
+    # Live facts (time/weather/location/Spotify/Steam) refreshed into the
+    # situational_context memory block before every send — see
+    # situational_context.py and docs/2026-08-22-situational-context-spec.md.
+    # Best-effort: if it's missing or errors, chat still works — Eva just
+    # doesn't get this turn's refresh.
+    import situational_context
+except Exception:  # noqa: BLE001
+    situational_context = None
+
+
+def _refresh_situational_context():
+    if situational_context is None or not AGENT_ID:
+        return
+    try:
+        value = situational_context.build()
+    except Exception:  # noqa: BLE001 — a bad field must never block the chat
+        return
+    url = f"{LETTA_HOST}/v1/agents/{AGENT_ID}/core-memory/blocks/situational_context"
+    req = urllib.request.Request(
+        url, data=json.dumps({"value": value}).encode(),
+        headers={"Content-Type": "application/json"}, method="PATCH",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=6):
+            pass
+    except Exception:  # noqa: BLE001 — best-effort; the block just stays stale this turn
+        pass
+
 
 # Tool-return bodies can be large (GetLiveContext's ~400-entity dump, seen
 # live 2026-08-22) — truncate before they ever leave eva-web. The point of the
@@ -127,6 +156,7 @@ def _build_trace(msgs: list) -> list:
 
 def letta_send(message: str):
     """Send one user turn to Letta; return (reply_text, [tool_names], usage, trace, elapsed_s)."""
+    _refresh_situational_context()
     url = f"{LETTA_HOST}/v1/agents/{AGENT_ID}/messages"
     body = json.dumps({"messages": [{"role": "user", "content": message}]}).encode()
     req = urllib.request.Request(
