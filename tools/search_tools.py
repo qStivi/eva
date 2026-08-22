@@ -40,6 +40,27 @@ def search_tools(query: str) -> str:
             "a specific device/integration, filter by 'name' instead (or alongside "
             "domain), don't guess a domain that matches the brand."
         ),
+        "HassTurnOff": (
+            " HINT: for a CLIMATE entity specifically, don't use this — confirmed "
+            "live (2026-08-22): it reports success but silently does nothing (HA's "
+            "own logbook showed no service call actually happened; a known, "
+            "climate-domain-wide HA limitation, not specific to this house). For "
+            "\"turn off the heating/thermostat,\" use HassClimateSetTemperature to "
+            "lower the target instead — that one's reliable and is what actually "
+            "stops it from heating. If Stephan specifically asks for the real "
+            "on/off mode toggle (not just \"make it stop heating\"), tell him "
+            "plainly that tool's broken for climate and he does that one by hand "
+            "himself — don't retry it hoping it'll work this time, and don't "
+            "silently substitute the temperature fix without saying so if that's "
+            "not what he actually asked for."
+        ),
+        "HassClimateSetTemperature": (
+            " HINT: this is also the reliable way to \"turn off\" a heating "
+            "thermostat in this house — Stephan lowers the target (down near the "
+            "device's minimum, e.g. 5°C) instead of using an on/off toggle, since "
+            "a target below room temperature stops it from firing. Use this for "
+            "\"turn off the heat\"/\"stop heating [room]\" requests, not HassTurnOff."
+        ),
     }
     for name, hint in EXTRA_HINTS.items():
         if name in by_name:
