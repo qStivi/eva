@@ -11,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'data/mock_chat.dart';
 import 'eva_theme.dart';
 import 'eva_tokens.dart';
+import 'screens/approvals_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/memory_screen.dart';
 import 'screens/personality_screen.dart';
@@ -19,7 +20,7 @@ import 'state/eva_controller.dart';
 import 'widgets/bits.dart';
 import 'widgets/presence.dart';
 
-enum _Panel { none, settings, personality, notebook }
+enum _Panel { none, settings, personality, notebook, approvals }
 
 String _moodWord(EvaMood m) {
   switch (m) {
@@ -345,6 +346,7 @@ class _DesktopShellState extends State<DesktopShell> {
                   ],
                 ),
               ),
+              _approvalsButton(),
               IconButton(
                 tooltip: 'Settings',
                 iconSize: 18,
@@ -359,6 +361,26 @@ class _DesktopShellState extends State<DesktopShell> {
     );
   }
 
+  /// Bell-style entry point for pending approvals (delegate_to_harness) — a
+  /// small badge whenever something's waiting, so it's visible without
+  /// hunting for it. See docs/2026-08-22-delegate-to-claude-spec.md.
+  Widget _approvalsButton() {
+    final pending = c.pendingJobs.length;
+    return IconButton(
+      tooltip: 'Approvals',
+      iconSize: 18,
+      color: _panel == _Panel.approvals ? EvaColors.accent : EvaColors.textMuted,
+      onPressed: () => _togglePanel(_Panel.approvals),
+      icon: Badge(
+        isLabelVisible: pending > 0,
+        label: Text('$pending'),
+        backgroundColor: EvaColors.warning,
+        textColor: EvaColors.crust,
+        child: const Icon(Icons.fact_check_outlined),
+      ),
+    );
+  }
+
   Widget _overlayPanel() {
     final Widget child;
     switch (_panel) {
@@ -368,6 +390,8 @@ class _DesktopShellState extends State<DesktopShell> {
         child = PersonalityScreen(controller: c);
       case _Panel.notebook:
         child = MemoryScreen(controller: c);
+      case _Panel.approvals:
+        child = ApprovalsScreen(controller: c);
       case _Panel.none:
         child = const SizedBox.shrink();
     }

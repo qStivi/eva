@@ -48,6 +48,15 @@ class EvaController extends ChangeNotifier {
   CheckinConfig? checkinConfig;
   bool checkinBusy = false;
 
+  // Jobs waiting on approval (delegate_to_harness etc.) — see
+  // docs/2026-08-22-delegate-to-claude-spec.md. Refreshed on connect, on
+  // every refreshMessages() call (foreground push / app resume — including
+  // a tapped approval notification), and on-demand from the Approvals
+  // screen's pull-to-refresh.
+  List<PendingJob> pendingJobs = [];
+  bool jobsBusy = false;
+  String? jobsError;
+
   EvaMood evaMood = EvaMood.neutral;
   bool thinking = false;
   String? typingText;
@@ -268,6 +277,7 @@ class EvaController extends ChangeNotifier {
     _startHeartbeat(); // keep status honest + auto-recover from here on
     unawaited(_pollModelLoad());
     unawaited(_loadCheckinConfig());
+    unawaited(refreshPendingJobs());
     notifyListeners();
   }
 
@@ -288,6 +298,7 @@ class EvaController extends ChangeNotifier {
       // Best-effort — a failed refresh just means the old transcript stays
       // stable rather than never trying again; the heartbeat/next open retries.
     }
+    unawaited(refreshPendingJobs()); // same trigger points care about both
   }
 
   /// Point at a different server URL (Settings) and reconnect. Optionally updates
@@ -370,6 +381,52 @@ class EvaController extends ChangeNotifier {
       _emitToast('Could not update check-in settings: ${e is LettaException ? e.message : e}');
     }
     checkinBusy = false;
+    notifyListeners();
+  }
+
+  // ---- pending-approval jobs (delegate_to_harness) ----
+
+  Future<void> refreshPendingJobs() async {
+    final api = _api;
+    final settings = _settings;
+    if (api == null || settings == null || status != ConnectionStatus.live) return;
+    try {
+      final jobs = await api.pendingJobs(settings.webBaseUrl, settings.webHeaders);
+      if (_disposed) return; // controller torn down while the request was in flight
+      pendingJobs = jobs;
+      jobsError = null;
+    } catch (e) {
+      if (_disposed) return;
+      // Best-effort, same as check-ins — a stale list beats a crash; the next
+      // trigger (heartbeat-adjacent refresh, screen open) retries.
+      jobsError = e is LettaException ? e.message : e.toString();
+    }
+    notifyListeners();
+  }
+
+  Future<void> respondToJob(String jobId, {required bool approve}) async {
+    final api = _api;
+    final settings = _settings;
+    if (api == null || settings == null) return;
+    jobsBusy = true;
+    notifyListeners();
+    String? error;
+    try {
+      if (approve) {
+        await api.approveJob(settings.webBaseUrl, settings.webHeaders, jobId);
+      } else {
+        await api.denyJob(settings.webBaseUrl, settings.webHeaders, jobId);
+      }
+    } catch (e) {
+      error = 'Could not ${approve ? 'approve' : 'deny'} that job: ${e is LettaException ? e.message : e}';
+    }
+    if (_disposed) return; // controller torn down while the request was in flight
+    if (error == null) {
+      pendingJobs = pendingJobs.where((j) => j.id != jobId).toList();
+    } else {
+      _emitToast(error);
+    }
+    jobsBusy = false;
     notifyListeners();
   }
 

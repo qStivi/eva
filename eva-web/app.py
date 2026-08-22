@@ -32,12 +32,18 @@ or the same Bearer key as /v1/*, so a Home Assistant automation can fire an
 immediate check-in ("Stephan just got home") the same way it already talks
 to the /v1 routes, without a third credential to manage.
 
-/jobs and /api/jobs/* are the v1 (stopgap) HITL approval surface for
-delegate_to_harness jobs — see docs/2026-08-22-delegate-to-claude-spec.md.
-/jobs is a plain server-rendered page (Basic-auth gated, same as everything
-else here); /api/jobs/pending, /api/jobs/<id>/approve, and
-/api/jobs/<id>/deny proxy straight through to eva-task-runner. Phase 3
-replaces this with a real Flutter screen.
+/jobs and /api/jobs/* are the HITL approval surface for delegate_to_harness
+jobs — see docs/2026-08-22-delegate-to-claude-spec.md. /api/jobs/pending,
+/api/jobs/<id>/approve, and /api/jobs/<id>/deny proxy straight through to
+eva-task-runner and are what the app's own Approvals screen actually calls
+(flutter/lib/screens/approvals_screen.dart) — pulled forward from Phase 3
+after the original plan (a server-rendered /jobs page, opened by tapping the
+push notification) turned out to be a dead end over the Cloudflare tunnel: a
+bare browser tab carries none of the Access service-token headers the app
+sends on every request, so Access 403s it before eva-web ever sees the
+request (confirmed live). /jobs itself (the plain HTML page) is still here
+as a LAN-only fallback, e.g. from a desktop browser — Basic-auth gated, same
+as everything else here — but the push notification no longer links to it.
 """
 import base64
 import hmac

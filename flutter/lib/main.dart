@@ -3,6 +3,8 @@
 // Letta backend, and opens on the responsive app shell. Tests construct EvaApp
 // with no controller, which yields a mock (offline) controller.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,12 +40,20 @@ Future<void> main() async {
   // otherwise touch the transcript at all — wire it to pull in whatever just
   // got said (see EvaController.refreshMessages's doc for the full picture).
   PushService.instance.onForegroundPush = controller.refreshMessages;
+  // Lets a tapped "Approvals needed" notification open the Approvals screen
+  // in-app (see push_service.dart) — bound before init() so it's ready
+  // before any tap could plausibly land.
+  PushService.bindController(controller);
   // Same: registers for push in the background, no-op off Android and never
   // blocks first paint (a missing distributor or dead runner just means no
   // push this session, not a startup failure).
   PushService.instance.init(settings);
 
   runApp(EvaApp(controller: controller));
+  // Covers the one case _onNotificationTapped can't (the app was fully
+  // killed and this launch IS the tap) — after runApp so the navigator
+  // PushService.navigatorKey is attached to actually exists.
+  unawaited(PushService.instance.checkLaunchedFromApproval());
 }
 
 class EvaApp extends StatefulWidget {
@@ -95,6 +105,7 @@ class _EvaAppState extends State<EvaApp> with WidgetsBindingObserver {
       title: 'Eva',
       debugShowCheckedModeBanner: false,
       theme: theme,
+      navigatorKey: PushService.navigatorKey,
       home: ResponsiveHome(controller: _controller),
     );
   }

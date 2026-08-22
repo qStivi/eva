@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'data/mock_chat.dart';
 import 'eva_tokens.dart';
+import 'screens/approvals_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/memory_screen.dart';
 import 'screens/personality_screen.dart';
@@ -108,6 +109,7 @@ class _AppShellState extends State<AppShell> {
                 ),
               ),
               _modelChip(),
+              _approvalsButton(context),
               StatusDot(thinking: c.thinking),
             ],
           ),
@@ -140,6 +142,30 @@ class _AppShellState extends State<AppShell> {
           const SizedBox(width: 4),
           Text(loaded ? 'warm' : 'cold', style: TextStyle(fontSize: 10.5, color: color)),
         ],
+      ),
+    );
+  }
+
+  /// Bell-style entry point for pending approvals (delegate_to_harness) — see
+  /// docs/2026-08-22-delegate-to-claude-spec.md. Badged whenever something's
+  /// waiting; pushed as its own full route (back button, not a tab) since
+  /// it's occasional, not a place you live day to day.
+  Widget _approvalsButton(BuildContext context) {
+    final pending = c.pendingJobs.length;
+    return IconButton(
+      tooltip: 'Approvals',
+      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Approvals')),
+          body: ApprovalsScreen(controller: c),
+        ),
+      )),
+      icon: Badge(
+        isLabelVisible: pending > 0,
+        label: Text('$pending'),
+        backgroundColor: EvaColors.warning,
+        textColor: EvaColors.crust,
+        child: const Icon(Icons.fact_check_outlined),
       ),
     );
   }

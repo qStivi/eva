@@ -25,12 +25,14 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 
 import '../config/eva_settings.dart';
 import '../firebase_options.dart';
+import '../screens/approvals_screen.dart';
+import '../state/eva_controller.dart';
 
 /// Fixed base for reaching the runner — it's loopback-only on the host, only
 /// reachable at all via the same public tunnel + Access gate as chat.
@@ -59,64 +61,25 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 /// Tap handler for a shown notification, wired in both the foreground
 /// (_initLocalNotifications) and background (the handler above) init calls.
-/// The payload is the raw FCM data map, JSON-encoded — see
-/// _showJobNotification. Only "approval" pushes carry a jobsUrl; anything
-/// else (job-completion pushes, etc.) just brings the app forward, which the
-/// OS already does on tap without any code here.
+/// Only reachable while the app's main isolate is alive (foreground or
+/// backgrounded-but-running) — a tap that relaunches a fully killed app
+/// doesn't go through this at all; see PushService.checkLaunchedFromApproval
+/// for that path. Payload is just the push's "type" string (see
+/// _showJobNotification) — "approval" opens the Approvals screen in-app.
+///
+/// This used to launch eva-web's /jobs page in the system browser instead —
+/// dropped after that produced a Cloudflare Access 403 in practice (a bare
+/// browser tab carries none of the Access service-token headers the app
+/// itself sends on every request). Going in-app sidesteps that outright: the
+/// app already has those headers, so it just calls eva-web's API directly.
 @pragma('vm:entry-point')
 void _onNotificationTapped(NotificationResponse response) {
-  final payload = response.payload;
-  if (payload == null || payload.isEmpty) return;
-  try {
-    final data = jsonDecode(payload) as Map<String, dynamic>;
-    if (data['type'] == 'approval') {
-      final url = data['jobsUrl'] as String?;
-      if (url != null) {
-        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      }
-    }
-  } catch (e) {
-    debugPrint('PushService: bad notification payload: $e');
-  }
-}
-
-/// Builds the one-tap eva-web /jobs URL, Basic-auth credentials embedded so
-/// tapping the notification doesn't stop at a login prompt — matches the
-/// plan's "should still be one tap" goal for the v1 approval surface (see
-/// docs/2026-08-22-delegate-to-claude-spec.md). Empty if either credential
-/// is unset (auth disabled, or not configured yet) since embedding an empty
-/// `:@` userinfo segment reads as malformed to some URL parsers.
-String? _jobsUrl(EvaSettings settings) {
-  final uri = Uri.tryParse(settings.webBaseUrl);
-  if (uri == null) return null;
-  if (settings.chatUser.isEmpty || settings.chatPassword.isEmpty) {
-    return uri.replace(path: '/jobs').toString();
-  }
-  return uri
-      .replace(
-        userInfo: '${Uri.encodeComponent(settings.chatUser)}:${Uri.encodeComponent(settings.chatPassword)}',
-        path: '/jobs',
-      )
-      .toString();
+  if (response.payload == 'approval') PushService._openApprovals();
 }
 
 Future<void> _showJobNotification(
     FlutterLocalNotificationsPlugin notifications, Map<String, dynamic> data) async {
-  // Payload carries the type + a ready-to-launch jobsUrl (looked up fresh
-  // here, not baked in at push time, so it always reflects the device's
-  // current settings) — built once, used by _onNotificationTapped above.
-  String? payload;
-  if (data['type'] == 'approval') {
-    try {
-      final settings = await EvaSettings.load();
-      final url = _jobsUrl(settings);
-      if (url != null) {
-        payload = jsonEncode({'type': 'approval', 'jobsUrl': url});
-      }
-    } catch (e) {
-      debugPrint('PushService: could not build approval jobsUrl: $e');
-    }
-  }
+  final payload = data['type'] == 'approval' ? 'approval' : null;
   await notifications.show(
     DateTime.now().millisecondsSinceEpoch ~/ 1000,
     (data['title'] as String?) ?? 'Eva',
@@ -141,6 +104,49 @@ class PushService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   EvaSettings? _settings;
+
+  /// Attached to MaterialApp in main.dart so a tapped notification can push a
+  /// route without needing a BuildContext of its own — the tap handler above
+  /// runs outside any widget's build.
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  /// The live EvaController, set once from main.dart right after it's
+  /// created (before PushService.init, so it's ready before any tap could
+  /// plausibly land). Static/nullable rather than passed through init()
+  /// because _onNotificationTapped is a top-level function reached from
+  /// contexts that don't carry instance state.
+  static EvaController? _controller;
+  static void bindController(EvaController controller) => _controller = controller;
+
+  static void _openApprovals() {
+    final nav = navigatorKey.currentState;
+    final controller = _controller;
+    if (nav == null || controller == null) return;
+    nav.push(MaterialPageRoute(
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: const Text('Approvals')),
+        body: ApprovalsScreen(controller: controller),
+      ),
+    ));
+  }
+
+  /// Call once at startup (after runApp, once the navigator exists) to catch
+  /// the case _onNotificationTapped can't: the app was fully killed and this
+  /// launch IS the tap. flutter_local_notifications hands this back via its
+  /// own launch-details API rather than routing through the normal tap
+  /// callback for a cold start.
+  Future<void> checkLaunchedFromApproval() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      final details = await _notifications.getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp == true &&
+          details?.notificationResponse?.payload == 'approval') {
+        PushService._openApprovals();
+      }
+    } catch (e) {
+      debugPrint('PushService: could not check launch details: $e');
+    }
+  }
 
   /// Called whenever a push arrives while the app is in the foreground —
   /// wired by main.dart to EvaController.refreshMessages() so the transcript

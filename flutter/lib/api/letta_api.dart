@@ -147,6 +147,48 @@ class CheckinConfig {
       );
 }
 
+/// One job sitting at pending_approval — see
+/// docs/2026-08-22-delegate-to-claude-spec.md. Mirrors eva-task-runner's job
+/// row shape (spec parsed out of its JSON-string form here).
+class PendingJob {
+  final String id;
+  final String kind;
+  final String task;
+  final String? workdir;
+  final String? model;
+  final List<String> moderationFlags;
+  final double createdAt; // epoch seconds
+  const PendingJob({
+    required this.id,
+    required this.kind,
+    required this.task,
+    this.workdir,
+    this.model,
+    this.moderationFlags = const [],
+    required this.createdAt,
+  });
+
+  factory PendingJob.fromJson(Map<String, dynamic> j) {
+    final rawSpec = j['spec'];
+    final spec = rawSpec is String
+        ? (jsonDecode(rawSpec) as Map<String, dynamic>)
+        : (rawSpec as Map<String, dynamic>? ?? const {});
+    final rawFlags = j['moderation_flags'];
+    final flags = rawFlags is String
+        ? (rawFlags.isEmpty ? const <String>[] : (jsonDecode(rawFlags) as List).cast<String>())
+        : (rawFlags is List ? rawFlags.cast<String>() : const <String>[]);
+    return PendingJob(
+      id: j['id'] as String,
+      kind: (j['kind'] as String?) ?? '?',
+      task: (spec['task'] as String?) ?? (spec['topic'] as String?) ?? '(no task text)',
+      workdir: spec['workdir'] as String?,
+      model: spec['model'] as String?,
+      moderationFlags: flags,
+      createdAt: (j['created_at'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
 // Tool-return bodies reconstructed from raw history aren't pre-truncated by
 // eva-web (this reads straight from Letta) — cap them the same way, so a
 // GetLiveContext-sized dump doesn't bloat a history load. Matches eva-web's
@@ -270,6 +312,30 @@ class LettaApi {
         .timeout(_quick);
     _ensureOk(r.statusCode, r.body);
     return CheckinConfig.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+  }
+
+  /// Jobs waiting on your approval — see
+  /// docs/2026-08-22-delegate-to-claude-spec.md. Goes through eva-web
+  /// (/api/jobs/pending), same as everything else here that touches
+  /// eva-task-runner — the runner itself stays loopback-only.
+  Future<List<PendingJob>> pendingJobs(String webBaseUrl, Map<String, String> webHeaders) async {
+    final url = Uri.parse('${webBaseUrl.replaceAll(RegExp(r'/+$'), '')}/api/jobs/pending');
+    final r = await _client.get(url, headers: webHeaders).timeout(_quick);
+    _ensureOk(r.statusCode, r.body);
+    final list = jsonDecode(r.body) as List;
+    return [for (final j in list) if (j is Map) PendingJob.fromJson(j.cast<String, dynamic>())];
+  }
+
+  Future<void> approveJob(String webBaseUrl, Map<String, String> webHeaders, String jobId) async {
+    final url = Uri.parse('${webBaseUrl.replaceAll(RegExp(r'/+$'), '')}/api/jobs/$jobId/approve');
+    final r = await _client.post(url, headers: webHeaders).timeout(_quick);
+    _ensureOk(r.statusCode, r.body);
+  }
+
+  Future<void> denyJob(String webBaseUrl, Map<String, String> webHeaders, String jobId) async {
+    final url = Uri.parse('${webBaseUrl.replaceAll(RegExp(r'/+$'), '')}/api/jobs/$jobId/deny');
+    final r = await _client.post(url, headers: webHeaders).timeout(_quick);
+    _ensureOk(r.statusCode, r.body);
   }
 
   /// Pure parser for a Letta /messages response. Mirrors eva-web's logic.
