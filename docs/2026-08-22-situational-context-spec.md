@@ -46,14 +46,14 @@ the model to read naturally, consistent with how the persona block reads).
 | Field | Source | Notes |
 |---|---|---|
 | Time of day, date, day of week | computed locally in eva-web | no external call, trivial |
-| Weather | HA (weather entity, already integrated) | reuse the existing Letta→HA MCP path, or pull it server-side in eva-web directly — cheaper to do server-side than via a tool call |
-| Location | HA `device_tracker`/`person` entity | named zone if inside a configured HA zone, otherwise generic "out and about" (deliberately not raw coordinates — privacy-conscious default, matches the "just on the go" framing from the original ask) |
-| Spotify now-playing | needs a live source — **not yet confirmed** | HA's Spotify integration may expose current track as a media_player entity; confirm before assuming this is free |
-| Steam activity | **HA has it** (confirmed 2026-08-22) | user checked — HA already exposes what's needed, no separate Steam Web API integration required. Confirm the exact entity/attribute at build time. |
+| Weather | HA `weather.forecast_home` (confirmed 2026-08-22, via `GetLiveContext`) | `state` (condition, e.g. "rainy") + `temperature`/`temperature_unit`/`humidity` attributes — everything needed |
+| Location | HA `person.stephan_glaue` (confirmed 2026-08-22) | `state` is already the zone name (`home`) when in a configured zone; device-level (`device_tracker.pixel_10_pro`) also available if the person entity is ever unreliable. "Out and about" fallback is just whatever HA reports when state isn't a known zone. |
+| Spotify now-playing | HA `media_player.spotify` (confirmed 2026-08-22) | `state` (`playing`/`paused`/idle), attributes `media_title`, `media_artist`, `media_album_name`, `volume_level` — exactly what's needed, no separate Spotify Web API/OAuth needed |
+| Steam activity | HA `sensor.steam` + `sensor.steam_now_playing` (confirmed 2026-08-22) | `sensor.steam` is presence (`online`/`away`/etc.); `sensor.steam_now_playing` is the game name when in a session (`unknown` when not playing anything) — no separate Steam Web API needed |
 
-Two fields (Spotify, Steam) need a source confirmed before this is buildable
-end-to-end — see open questions below. Time/date/weather/location can ship
-first as a smaller v1 if the other two need more research.
+All five fields resolved via the same `GetLiveContext` HA path already proven
+working (2026-08-22, once entities were exposed to Assist) — nothing needs a
+separate integration or API key. This can ship as one build, not staged.
 
 ## Where this lives, concretely
 
@@ -70,19 +70,21 @@ first as a smaller v1 if the other two need more research.
 
 ## Open questions for build time
 
-- **Spotify:** does HA's integration expose "currently playing" in a way
-  that's queryable without user-specific OAuth juggling on eva-web's side, or
-  does this need Spotify's own Web API with its own token flow? Check the HA
-  integration first — reusing infra beats a second OAuth dance.
-- **Steam:** confirmed available via HA (no separate Steam Web API needed) —
-  identify the exact entity id and which attribute carries "currently
-  playing" at build time.
-- **Weather:** which HA weather entity/integration is actually configured —
-  confirm the entity id and what fields it exposes (condition, temp) before
-  writing the formatter.
-- **Zone naming for location:** confirm which HA zones are already configured
-  (home, work, etc.) vs. need adding, and decide the exact "out and about"
-  fallback wording so it reads in-character, not robotic.
+All five source fields are now confirmed (see table above) — nothing left to
+research on the "does the data exist" front. What's left is build mechanics:
+
+- **How eva-web reads HA state.** Two options: reuse the same `GetLiveContext`
+  MCP path proven above (one call gets everything in one shot, but returns
+  *all* ~400 exposed entities — needs filtering down to the ~6 that matter),
+  or call HA's own REST API directly (`GET /api/states/<entity_id>`, one call
+  per field, needs `HA_URL`/`HA_TOKEN` — already sitting in
+  `~/.config/letta/ha.env`, reusable here). Direct REST is probably cleaner
+  for "give me these 6 known entity ids," since `GetLiveContext` is built for
+  open-ended querying, not a fixed field list.
+- **Zone naming for location:** only `home` is configured as a zone right now
+  (confirmed above) — decide the exact "out and about" fallback wording for
+  literally everywhere else, so it reads in-character, not robotic. Adding
+  more named zones (work, etc.) in HA is optional, not required to ship v1.
 - Token cost: once all fields are in, sanity-check the block's rendered size —
   it's paid on every single turn, unlike a tool call that's only paid when
   invoked.
