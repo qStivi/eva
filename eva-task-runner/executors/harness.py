@@ -122,29 +122,62 @@ def _ensure_strip_proxy():
             time.sleep(0.2)  # let the socket bind before dsh's first request
 
 
+# Fixed catalog, matching dsh-mistral-patch.yml's own `models:` list — the
+# ONLY two model ids this executor will ever pass through. `model` reaches
+# here from the task spec, which a delegated task's own content (or a
+# prompt-injected instruction inside it) can influence; validating against
+# this allowlist rather than accepting any string closes two things at once
+# (see the run() docstring's Security note): it's also the exact value that
+# gets f-string-interpolated into the ad-hoc YAML override below, so a
+# rejected model can never reach that interpolation either.
+ALLOWED_MODELS = ("mistral-large-latest", "codestral-2508")
+
+
 def run(spec: dict) -> dict:
     """Entry point called by runner.py's executor dispatch. spec: {"task":
     str, "workdir": str?, "model": str? ("mistral-large-latest" default, or
     "codestral-2508" for code-focused work)}. Returns {"output": str,
-    "exit_code": int}. Raises on setup failure (missing task, dsh not
-    found) — a bad *run* still returns normally with a non-zero exit_code,
-    since that's a real (if disappointing) result, not an executor bug."""
+    "exit_code": int}. Raises on setup failure (missing/malformed task, dsh
+    not found) — a bad *run* still returns normally with a non-zero
+    exit_code, since that's a real (if disappointing) result, not an
+    executor bug.
+
+    Security note: `task`/`model`/`workdir` all ultimately trace back to
+    content Eva (an LLM) decided to put in a tool call — which can itself be
+    steered by something a delegated task or fetched web page said, not
+    just Stephan. Confirmed live during the build that `dsh` genuinely
+    parses a task string starting with "-" as one of ITS OWN flags rather
+    than erroring safely (`task="--dump-config"` really dumps the composed
+    config instead of running as task text) — a `--` end-of-options marker
+    does NOT protect against this for this particular CLI (tested; it makes
+    the failure mode worse, not better). So a leading "-" is rejected
+    outright below, and `model` is checked against ALLOWED_MODELS before it
+    ever reaches the YAML override string, rather than trusting the caller
+    not to hand back stray YAML syntax."""
     task = (spec.get("task") or "").strip()
     if not task:
         raise ValueError("harness job spec needs a non-empty 'task'")
+    if task.startswith("-"):
+        raise ValueError("harness task text can't start with '-' — dsh's own CLI "
+                          "parses a leading '-' as one of its own flags, not task text")
     if not shutil.which(DSH_BIN) and not os.path.isfile(DSH_BIN):
         raise RuntimeError(f"dsh binary not found at {DSH_BIN} — is DeepSeek Harness installed?")
 
     workdir = os.path.expanduser(spec.get("workdir") or DEFAULT_WORKDIR)
     os.makedirs(workdir, exist_ok=True)
     model = spec.get("model") or "mistral-large-latest"
+    if model not in ALLOWED_MODELS:
+        raise ValueError(f"unsupported model {model!r} — allowed: {ALLOWED_MODELS}")
 
     _ensure_strip_proxy()
 
     patches = [os.path.abspath(PATCH_FILE)]
     if model != "mistral-large-latest":
         # Small ad-hoc overlay applied on top of the base patch (--patch is
-        # repeatable and applies in order) — just swaps the model id.
+        # repeatable and applies in order) — just swaps the model id. `model`
+        # is already validated against ALLOWED_MODELS above, so this
+        # f-string can never carry attacker-controlled YAML syntax into the
+        # patch (a colon, a newline, a second `- id:` entry, ...).
         override = f"- id: agent-default-model\n  config:\n    provider: deepseek-official\n    model: {model}\n"
         override_path = os.path.join(workdir, ".dsh-model-override.yml")
         with open(override_path, "w") as f:
