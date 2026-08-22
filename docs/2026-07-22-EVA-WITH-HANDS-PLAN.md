@@ -216,9 +216,13 @@ for the app while we're in that seam.
 
 ## Open questions / to resolve while building
 
-- **Sleeptime VRAM contention:** running 30B-Thinking for consolidation vs. keeping
-  gpt-oss-20b hot for chat on 16 GB. Sequential hand-off, a smaller consolidator, or
-  cloud-escalate consolidation? (Ties into the separate cloud-escalation roadmap item.)
+- ~~**Sleeptime VRAM contention:**~~ **Resolved 2026-08-22.** The consolidator ran on
+  the same local gpt-oss-20b as foreground chat since Phase 0 shipped (30B-Thinking
+  was never actually wired up), contending for GPU on every one of its every-5-turn
+  firings. Moved to `mistral/mistral-medium-latest` (cloud-escalate, the option this
+  question already named) via `scripts/set-sleeptime-model.sh` — same PATCH
+  `/v1/agents/{id}` mechanism `model_router.py` uses for chat tiering. Off the GPU
+  entirely now, billed the same Mistral usage already tracked for chat/research.
 - **App refresh model:** pure push-triggered history fetch, or a low-frequency poll as
   well for when push is missed (doze)? Probably both.
 - **Approval UX latency:** if you're at your desk, approving via a web page is fine; on
