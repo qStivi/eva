@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Upsert research_task and check_task into Letta's tool registry (source-code
-# tools, same pattern register-toolsets.sh uses for use_toolset). Run this once
-# eva-task-runner is up, THEN run register-toolsets.sh so the "research" group
-# from toolsets.json actually resolves to real tool ids when it applies core.
+# Upsert eva-task-runner-backed tools into Letta's tool registry (source-code
+# tools, same pattern register-toolsets.sh uses for use_toolset): research_task
+# and check_task (background research jobs), and create_timer (reminders/
+# alarms — docs/2026-08-22-timers-reminders-spec.md). Run this once
+# eva-task-runner is up, THEN run register-toolsets.sh so toolsets.json's
+# 'research' group and 'core' membership resolve to real tool ids.
 #
 #   ./scripts/register-research-tools.sh && ./scripts/register-toolsets.sh
 set -euo pipefail
@@ -10,7 +12,7 @@ set -euo pipefail
 LETTA="${LETTA_HOST:-http://localhost:8283}"
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-for name in research_task check_task; do
+for name in research_task check_task create_timer; do
   src="$DIR/tools/$name.py"
   [ -f "$src" ] || { echo "missing $src" >&2; exit 1; }
   echo "== registering $name =="

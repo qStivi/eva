@@ -38,6 +38,13 @@ immediate check-in — from Home Assistant, or anything else — goes through
 POST /checkin/trigger with an optional {"reason": "..."} free-text context
 string (e.g. "Stephan just got home"); also reached only through eva-web's
 proxy, never directly, same as the rest of this process.
+
+Also owns one-off reminders/timers — a real alarm, set by Eva
+(tools/create_timer.py, POSTing to /timers directly against this loopback
+service the same way research_task does) or, later, the app. Unlike
+check-ins, firing one always pushes (an alarm that might silently not go off
+isn't an alarm) and always injects a nudge so Eva remembers it happened, even
+if she has nothing to add. See docs/2026-08-22-timers-reminders-spec.md.
 """
 import datetime
 import json
@@ -122,6 +129,20 @@ def init_db():
             except sqlite3.OperationalError:
                 pass  # already has it
         conn.execute("INSERT OR IGNORE INTO checkin_config (id) VALUES (1)")
+        # One-off reminders/timers (an "alarm", not a recurring thing — see
+        # docs/2026-08-22-timers-reminders-spec.md). fired_at is the poll
+        # loop's dedupe key: NULL until fired, set the instant it's picked up
+        # so a slow tick or a near-simultaneous second tick can't double-fire.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS timers (
+                id TEXT PRIMARY KEY,
+                reminder TEXT NOT NULL,
+                due_at REAL NOT NULL,
+                created_by TEXT NOT NULL DEFAULT 'eva',
+                created_at REAL NOT NULL,
+                fired_at REAL
+            )
+        """)
 
 
 def add_fcm_token(token: str):
@@ -239,6 +260,70 @@ def _do_checkin(reason: str):
             _push(reply, "Eva")
         except Exception as e:  # noqa: BLE001
             sys.stderr.write("eva-task-runner: checkin push failed: %s\n" % e)
+
+
+def create_timer(minutes: float, reminder: str, created_by: str = "eva") -> dict:
+    timer_id = uuid.uuid4().hex[:12]
+    now = time.time()
+    with _db_lock, _db() as conn:
+        conn.execute(
+            "INSERT INTO timers (id, reminder, due_at, created_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (timer_id, reminder, now + minutes * 60, created_by, now))
+    return {"id": timer_id, "due_at": now + minutes * 60}
+
+
+def list_pending_timers():
+    with _db_lock, _db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM timers WHERE fired_at IS NULL ORDER BY due_at").fetchall()
+    return [dict(r) for r in rows]
+
+
+def _due_timers():
+    with _db_lock, _db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM timers WHERE fired_at IS NULL AND due_at <= ?",
+            (time.time(),)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _mark_timer_fired(timer_id: str):
+    with _db_lock, _db() as conn:
+        conn.execute("UPDATE timers SET fired_at = ? WHERE id = ?", (time.time(), timer_id))
+
+
+TIMER_POLL_S = 30  # short — this is meant to feel like a real alarm, not check-ins' 5min
+
+
+def _timer_loop():
+    while True:
+        time.sleep(TIMER_POLL_S)
+        try:
+            for t in _due_timers():
+                # Mark fired first — a slow _fire_timer (the Letta inject can take a
+                # while) must never let a second tick pick the same row up again.
+                _mark_timer_fired(t["id"])
+                _fire_timer(t)
+        except Exception as e:  # noqa: BLE001 — one bad tick must not kill the loop
+            sys.stderr.write("eva-task-runner: timer loop error: %s\n" % e)
+
+
+def _fire_timer(t: dict):
+    """Always pushes — unlike check-ins, an alarm that might silently not go
+    off isn't an alarm. Also always injects a nudge (best-effort) so Eva
+    remembers it happened even if she has nothing to add right now."""
+    try:
+        _push(t["reminder"], "Eva ⏰")
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write("eva-task-runner: timer push failed: %s\n" % e)
+    try:
+        _inject(
+            "(a reminder you set just fired: \"%s\". Bring it up if it's natural, "
+            "otherwise it already reached him directly — no need to force it.)"
+            % t["reminder"])
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write("eva-task-runner: timer inject failed: %s\n" % e)
 
 
 def create_job(kind: str, spec: dict) -> str:
@@ -414,6 +499,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_checkin_config()
         if self.path == "/checkin/trigger":
             return self._handle_checkin_trigger()
+        if self.path == "/timers":
+            return self._handle_create_timer()
         if self.path != "/jobs":
             return self._json(404, {"error": "not found"})
         try:
@@ -499,9 +586,31 @@ class Handler(BaseHTTPRequestHandler):
         threading.Thread(target=_do_checkin, args=(reason,), daemon=True).start()
         self._json(202, {"ok": True, "dispatched": True})
 
+    def _handle_create_timer(self):
+        """Called by tools/create_timer.py — Eva setting a reminder, the way
+        you'd set an alarm. Validated synchronously (this is cheap — no
+        thread dispatch needed, unlike job submission or a check-in)."""
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            return self._json(400, {"error": "bad request body"})
+        try:
+            minutes = float(payload.get("minutes"))
+        except (TypeError, ValueError):
+            return self._json(400, {"error": "minutes must be a number"})
+        if minutes <= 0:
+            return self._json(400, {"error": "minutes must be > 0"})
+        reminder = (payload.get("reminder") or "").strip()[:300]
+        if not reminder:
+            return self._json(400, {"error": "missing 'reminder'"})
+        self._json(201, create_timer(minutes, reminder, created_by=payload.get("created_by", "eva")))
+
     def do_GET(self):
         if self.path == "/checkin/config":
             return self._json(200, get_checkin_config())
+        if self.path == "/timers":
+            return self._json(200, list_pending_timers())
         if self.path == "/jobs":
             return self._json(200, list_jobs())
         if self.path.startswith("/jobs?state="):
@@ -522,6 +631,7 @@ def main():
     prune_old_jobs()
     threading.Thread(target=_prune_loop, daemon=True).start()
     threading.Thread(target=_checkin_loop, daemon=True).start()
+    threading.Thread(target=_timer_loop, daemon=True).start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"eva-task-runner listening on {HOST}:{PORT} (agent={AGENT_ID or '?'})")
     server.serve_forever()

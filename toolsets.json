@@ -10,7 +10,8 @@
     "HassListAddItem",
     "HassListCompleteItem",
     "HassListRemoveItem",
-    "use_toolset"
+    "use_toolset",
+    "create_timer"
   ],
   "groups": {
     "home": ["HassTurnOn", "HassTurnOff", "HassClimateSetTemperature", "GetLiveContext"],
