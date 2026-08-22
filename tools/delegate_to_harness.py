@@ -13,10 +13,16 @@ def delegate_to_harness(task: str, workdir: str = None, model: str = None) -> st
         task: the task itself, written as a clear instruction — what to do,
             not just a topic (e.g. "fix the typo in README.md's install
             section", not "the README").
-        workdir: optional — a specific directory for this to run in.
-            Defaults to a dedicated scratch workspace if you don't pass one;
-            only set this if the task genuinely needs a specific project
-            directory.
+        workdir: optional — leave this unset almost always; it already
+            defaults to a real, working scratch directory on its own. Never
+            guess a path here (like something under a guessed home
+            directory) — you don't actually know Stephan's system username
+            or exact directory layout, and a guessed path fails outright
+            rather than silently going somewhere else. Only pass this as an
+            explicit subdirectory *name* if the task genuinely needs its own
+            separate space (e.g. "myproject", not a full path) — it can only
+            ever be the default scratch directory or somewhere inside it,
+            never anywhere else on the system.
         model: optional — "codestral-2508" for a task that's purely
             code-completion-shaped; otherwise leave unset for the default
             general-purpose model.

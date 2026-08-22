@@ -133,6 +133,25 @@ def _ensure_strip_proxy():
 ALLOWED_MODELS = ("mistral-large-latest", "codestral-2508")
 
 
+def _resolve_workdir(requested: str) -> str:
+    """DEFAULT_WORKDIR itself, or a real subdirectory of it — nothing else.
+    `os.path.realpath` resolves `..`/symlinks before the containment check,
+    so this can't be escaped by either. Raises ValueError (not silently
+    falling back) so a job that asked for somewhere out of scope fails
+    loudly with a clear reason, rather than either running somewhere
+    unintended or crashing on a raw OSError deep inside os.makedirs."""
+    base = os.path.realpath(os.path.expanduser(DEFAULT_WORKDIR))
+    if not requested:
+        return base
+    resolved = os.path.realpath(os.path.expanduser(requested))
+    if resolved != base and not resolved.startswith(base + os.sep):
+        raise ValueError(
+            f"workdir {requested!r} is outside the allowed scratch directory "
+            f"({DEFAULT_WORKDIR}) — leave workdir unset for the default, or use a "
+            f"subdirectory under it, e.g. '{DEFAULT_WORKDIR}/some-project'")
+    return resolved
+
+
 def run(spec: dict) -> dict:
     """Entry point called by runner.py's executor dispatch. spec: {"task":
     str, "workdir": str?, "model": str? ("mistral-large-latest" default, or
@@ -153,7 +172,13 @@ def run(spec: dict) -> dict:
     the failure mode worse, not better). So a leading "-" is rejected
     outright below, and `model` is checked against ALLOWED_MODELS before it
     ever reaches the YAML override string, rather than trusting the caller
-    not to hand back stray YAML syntax."""
+    not to hand back stray YAML syntax. `workdir` is constrained to
+    DEFAULT_WORKDIR or a real subdirectory of it (confirmed live 2026-08-22:
+    Eva guessed `/home/stephan/eva-workspace` — a plausible-sounding but
+    nonexistent path, since the real account here is `qstivi` — and got a
+    raw `PermissionError` trying to create `/home/stephan`; this both gives
+    a clearer error for that case and closes the spec's open "fixed vs.
+    free-text workdir" question in favor of fixed)."""
     task = (spec.get("task") or "").strip()
     if not task:
         raise ValueError("harness job spec needs a non-empty 'task'")
@@ -163,7 +188,7 @@ def run(spec: dict) -> dict:
     if not shutil.which(DSH_BIN) and not os.path.isfile(DSH_BIN):
         raise RuntimeError(f"dsh binary not found at {DSH_BIN} — is DeepSeek Harness installed?")
 
-    workdir = os.path.expanduser(spec.get("workdir") or DEFAULT_WORKDIR)
+    workdir = _resolve_workdir(spec.get("workdir"))
     os.makedirs(workdir, exist_ok=True)
     model = spec.get("model") or "mistral-large-latest"
     if model not in ALLOWED_MODELS:
