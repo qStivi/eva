@@ -168,6 +168,8 @@ class _ChatScreenState extends State<ChatScreen> {
           remembered: m.remembered,
           mood: m.mood,
           tools: m.tools,
+          trace: m.trace,
+          elapsedSeconds: m.elapsedSeconds,
         ),
         showAvatar: prev == null || prev.from != Speaker.eva,
         mood: m.mood,

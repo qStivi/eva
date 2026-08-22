@@ -223,6 +223,8 @@ class EvaController extends ChangeNotifier {
         from: h.role == HistoryRole.user ? Speaker.you : Speaker.eva,
         text: h.text,
         time: _fmtTime(h.at),
+        trace: h.trace,
+        elapsedSeconds: h.elapsedSeconds,
       ));
     }
   }
@@ -555,7 +557,7 @@ class EvaController extends ChangeNotifier {
         await _loadMemory();
         if (memories.length > before) _emitToast(rememberedToast);
         unawaited(_pollModelLoad()); // the model just ran — should read as loaded now
-      }, tools: reply.tools);
+      }, tools: reply.tools, trace: reply.trace, elapsedSeconds: reply.elapsedSeconds);
       return;
     } catch (e) {
       if (_disposed || myTurn != _turn) return; // cancelled/disposed — user moved on
@@ -580,7 +582,7 @@ class EvaController extends ChangeNotifier {
 
   /// Reveal [full] one calm chunk at a time, then commit the message + onDone.
   void _runTypewriter(String full, EvaMood mood, bool remembered, FutureOr<void> Function() onDone,
-      {List<String> tools = const []}) {
+      {List<String> tools = const [], List<TraceEntry> trace = const [], double? elapsedSeconds}) {
     final chunk = max(1, (full.length / 34).ceil());
     var i = 0;
     thinking = false;
@@ -605,6 +607,8 @@ class EvaController extends ChangeNotifier {
             remembered: remembered,
             mood: mood,
             tools: tools,
+            trace: trace,
+            elapsedSeconds: elapsedSeconds,
           ));
           notifyListeners();
           onDone();

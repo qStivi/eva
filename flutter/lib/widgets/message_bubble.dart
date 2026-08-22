@@ -4,10 +4,13 @@
 //  - You: humanist sans, inset surface, tail bottom-right.
 //  - System: centered, faint, no bubble.
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../api/letta_api.dart' show TraceEntry, TraceKind;
 import '../data/mock_chat.dart';
 import '../eva_theme.dart';
 import '../eva_tokens.dart';
@@ -21,6 +24,12 @@ class MessageBubble extends StatelessWidget {
   final bool caret;
   final List<String> tools;
 
+  /// The full step-by-step trace (reasoning + tool calls) behind this turn —
+  /// drives the expandable "N tools used · thought for Ns" disclosure. See
+  /// docs/2026-08-22-tool-trace-transparency-spec.md.
+  final List<TraceEntry> trace;
+  final double? elapsedSeconds;
+
   const MessageBubble({
     super.key,
     required this.speaker,
@@ -30,15 +39,9 @@ class MessageBubble extends StatelessWidget {
     this.mood = EvaMood.neutral,
     this.caret = false,
     this.tools = const [],
+    this.trace = const [],
+    this.elapsedSeconds,
   });
-
-  /// User-facing tools worth surfacing as a tag → (icon, label). Internal tools
-  /// (memory_insert, conversation_search, …) are intentionally absent, so they
-  /// don't show — memory saves already surface via the "jotted it down" tag.
-  static const Map<String, (IconData, String)> _toolTags = {
-    'searxng_web_search': (Icons.travel_explore, 'searched the web'),
-    'web_url_read': (Icons.link, 'read a page'),
-  };
 
   bool get _isEva => speaker == Speaker.eva;
 
@@ -77,9 +80,7 @@ class MessageBubble extends StatelessWidget {
       crossAxisAlignment: _isEva ? CrossAxisAlignment.start : CrossAxisAlignment.end,
       children: [
         if (remembered && _isEva) _rememberedTag(),
-        if (_isEva)
-          for (final name in tools)
-            if (_toolTags.containsKey(name)) _toolTag(_toolTags[name]!),
+        if (_isEva && trace.isNotEmpty) _TraceDisclosure(trace: trace, elapsedSeconds: elapsedSeconds),
         AnimatedContainer(
           duration: EvaMotion.base,
           curve: EvaMotion.easeOut,
@@ -119,29 +120,6 @@ class MessageBubble extends StatelessWidget {
             style: TextStyle(
               fontSize: EvaType.xs,
               color: EvaColors.remembered,
-              fontWeight: EvaWeights.medium,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// A quiet "she used a tool" tag (e.g. searched the web), styled like the
-  /// remembered tag but in the muted palette so it stays unobtrusive.
-  Widget _toolTag((IconData, String) tag) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(tag.$1, size: 13, color: EvaColors.textMuted),
-          const SizedBox(width: 5),
-          Text(
-            tag.$2,
-            style: const TextStyle(
-              fontSize: EvaType.xs,
-              color: EvaColors.textMuted,
               fontWeight: EvaWeights.medium,
             ),
           ),
@@ -275,5 +253,179 @@ class _BlinkingCaretState extends State<_BlinkingCaret> with SingleTickerProvide
         ),
       ),
     );
+  }
+}
+
+/// The "N tools used · thought for Ns" line under Eva's bubble — the
+/// generalized, always-honest replacement for the old hardcoded tool tag.
+/// Tapping it expands her reasoning and every tool call inline: name,
+/// arguments, and what came back. Covers every tool she has, not an
+/// allowlist — see docs/2026-08-22-tool-trace-transparency-spec.md.
+class _TraceDisclosure extends StatefulWidget {
+  final List<TraceEntry> trace;
+  final double? elapsedSeconds;
+  const _TraceDisclosure({required this.trace, this.elapsedSeconds});
+
+  @override
+  State<_TraceDisclosure> createState() => _TraceDisclosureState();
+}
+
+class _TraceDisclosureState extends State<_TraceDisclosure> {
+  bool _open = false;
+
+  String get _summary {
+    final toolCount = widget.trace.where((e) => e.kind == TraceKind.toolCall).length;
+    final parts = <String>[];
+    if (toolCount > 0) parts.add('$toolCount tool${toolCount == 1 ? '' : 's'} used');
+    final secs = widget.elapsedSeconds;
+    if (secs != null && secs >= 1) parts.add('thought for ${secs.round()}s');
+    if (parts.isNotEmpty) return parts.join(' · ');
+    // Reasoning-only turn (rare — the local model often leaves reasoning
+    // empty) or a sub-second round trip: still surface *something* tappable
+    // rather than silently dropping a real trace.
+    final n = widget.trace.length;
+    return '$n step${n == 1 ? '' : 's'}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(EvaRadii.sm),
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.bolt_outlined, size: 13, color: EvaColors.textMuted),
+                  const SizedBox(width: 5),
+                  Text(
+                    _summary,
+                    style: const TextStyle(
+                      fontSize: EvaType.xs,
+                      color: EvaColors.textMuted,
+                      fontWeight: EvaWeights.medium,
+                    ),
+                  ),
+                  Icon(
+                    _open ? Icons.expand_less : Icons.expand_more,
+                    size: 15,
+                    color: EvaColors.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_open)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [for (final e in widget.trace) _entry(e)],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _entry(TraceEntry e) {
+    if (e.kind == TraceKind.reasoning) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Text(
+          e.text ?? '',
+          style: TextStyle(
+            fontSize: EvaType.xs,
+            fontStyle: FontStyle.italic,
+            color: EvaColors.accent3.withValues(alpha: 0.85),
+          ),
+        ),
+      );
+    }
+    final failed = (e.status ?? 'success') != 'success';
+    final mono = const TextStyle(fontFamily: EvaFonts.mono, fontFamilyFallback: EvaFonts.monoFallback);
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: EvaColors.surfaceInset,
+        borderRadius: BorderRadius.circular(EvaRadii.sm),
+        border: failed ? Border.all(color: EvaColors.maroon.withValues(alpha: 0.4)) : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.build_circle_outlined,
+                  size: 13, color: failed ? EvaColors.maroon : EvaColors.textMuted),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  e.name,
+                  style: mono.copyWith(
+                    fontSize: EvaType.xs,
+                    fontWeight: EvaWeights.semibold,
+                    color: EvaColors.textPrimary,
+                  ),
+                ),
+              ),
+              if (failed)
+                Text(e.status ?? 'error',
+                    style: const TextStyle(fontSize: EvaType.xs, color: EvaColors.maroon)),
+            ],
+          ),
+          if (e.args != null) ...[
+            const SizedBox(height: 4),
+            Text(_formatArgs(e.args),
+                style: mono.copyWith(fontSize: EvaType.xs, color: EvaColors.textSecondary)),
+          ],
+          if (e.result != null && e.result!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              e.truncated ? '${_formatResult(e.result!)}\n…(truncated)' : _formatResult(e.result!),
+              style: mono.copyWith(fontSize: EvaType.xs, color: EvaColors.textMuted),
+              maxLines: 14,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact, readable rendering of a tool call's arguments — `key: value`
+/// lines for the common object case, otherwise the raw value.
+String _formatArgs(dynamic args) {
+  if (args == null) return '(no args)';
+  if (args is Map) {
+    if (args.isEmpty) return '(no args)';
+    return args.entries
+        .map((e) => '${e.key}: ${e.value is String ? e.value : jsonEncode(e.value)}')
+        .join('\n');
+  }
+  if (args is String && args.isEmpty) return '(no args)';
+  return args.toString();
+}
+
+/// Pretty-prints a tool's raw return if it's JSON; otherwise shows it as-is.
+String _formatResult(String result) {
+  try {
+    return const JsonEncoder.withIndent('  ').convert(jsonDecode(result));
+  } catch (_) {
+    return result;
   }
 }

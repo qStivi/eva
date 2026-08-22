@@ -72,15 +72,70 @@ except Exception:  # noqa: BLE001
     model_router = None
 
 
+# Tool-return bodies can be large (GetLiveContext's ~400-entity dump, seen
+# live 2026-08-22) — truncate before they ever leave eva-web. The point of the
+# trace is showing *what* she called and roughly *what came back*, not
+# shipping a full data dump to the phone every turn.
+TRACE_RETURN_CHARS = 2000
+
+
+def _build_trace(msgs: list) -> list:
+    """Turn Letta's raw interleaved message list into an ordered, UI-ready
+    trace: reasoning steps and tool calls (each paired with its own return),
+    in the order they happened. See docs/2026-08-22-tool-trace-transparency-spec.md.
+    """
+    returns_by_id = {
+        m.get("tool_call_id"): m
+        for m in msgs
+        if m.get("message_type") == "tool_return_message"
+    }
+    trace = []
+    for m in msgs:
+        t = m.get("message_type")
+        if t == "reasoning_message":
+            text = (m.get("reasoning") or "").strip()
+            if text:
+                trace.append({"type": "reasoning", "text": text})
+        elif t == "tool_call_message":
+            call = m.get("tool_call") or {}
+            name = call.get("name")
+            if not name:
+                continue
+            args_raw = call.get("arguments") or ""
+            try:
+                args = json.loads(args_raw)
+            except Exception:  # noqa: BLE001 — best-effort; show the raw string
+                args = args_raw
+            ret = returns_by_id.get(call.get("tool_call_id"))
+            status = (ret or {}).get("status") or "unknown"
+            result = (ret or {}).get("tool_return")
+            result_str = result if isinstance(result, str) else json.dumps(result)
+            truncated = False
+            if result_str and len(result_str) > TRACE_RETURN_CHARS:
+                result_str = result_str[:TRACE_RETURN_CHARS]
+                truncated = True
+            trace.append({
+                "type": "tool_call",
+                "name": name,
+                "args": args,
+                "status": status,
+                "result": result_str,
+                "truncated": truncated,
+            })
+    return trace
+
+
 def letta_send(message: str):
-    """Send one user turn to Letta; return (reply_text, [tool_names], usage)."""
+    """Send one user turn to Letta; return (reply_text, [tool_names], usage, trace, elapsed_s)."""
     url = f"{LETTA_HOST}/v1/agents/{AGENT_ID}/messages"
     body = json.dumps({"messages": [{"role": "user", "content": message}]}).encode()
     req = urllib.request.Request(
         url, data=body, headers={"Content-Type": "application/json"}, method="POST"
     )
+    t0 = time.time()
     with urllib.request.urlopen(req, timeout=300) as r:
         data = json.loads(r.read().decode())
+    elapsed_s = round(time.time() - t0, 1)
     msgs = data.get("messages", data if isinstance(data, list) else [])
     # Pair tool_call_message -> tool_return_message by tool_call_id so a call Letta
     # rejected (e.g. ToolConstraintError for a tool that isn't attached) doesn't get
@@ -98,12 +153,14 @@ def letta_send(message: str):
             if call.get("name") and call.get("tool_call_id") in ok_ids:
                 tools.append(call["name"])
     reply = "\n".join(p.strip() for p in reply_parts).strip()
-    return reply or "(no reply)", tools, data.get("usage")
+    trace = _build_trace(msgs)
+    return reply or "(no reply)", tools, data.get("usage"), trace, elapsed_s
 
 
 def run_turn(message: str):
     """Route to a cloud model tier + pre-attach the right toolsets (both
-    best-effort) then send one turn to Letta. Returns (reply, tools, tier, cost).
+    best-effort) then send one turn to Letta. Returns (reply, tools, tier,
+    cost, trace, elapsed_s).
 
     Shared by the web UI (/api/chat) and the OpenAI-compatible shim
     (/v1/chat/completions) so both surfaces get the same routing + toolsets.
@@ -119,14 +176,14 @@ def run_turn(message: str):
             preload_for(message, AGENT_ID, LETTA_HOST)
         except Exception:  # noqa: BLE001 — best-effort; never block the chat
             pass
-    reply, tools, usage = letta_send(message)
+    reply, tools, usage, trace, elapsed_s = letta_send(message)
     cost = None
     if model_router is not None and tier is not None:
         try:
             cost = round(model_router.log_turn(tier, usage, message), 6)
         except Exception:  # noqa: BLE001 — logging must never break chat
             pass
-    return reply, tools, tier, cost
+    return reply, tools, tier, cost, trace, elapsed_s
 
 
 def _last_user_message(payload: dict) -> str:
@@ -282,8 +339,11 @@ class Handler(BaseHTTPRequestHandler):
         if not message:
             return self._json(400, {"error": "empty message"})
         try:
-            reply, tools, tier, cost = run_turn(message)
-            return self._json(200, {"reply": reply, "tools": tools, "tier": tier, "cost_usd": cost})
+            reply, tools, tier, cost, trace, elapsed_s = run_turn(message)
+            return self._json(200, {
+                "reply": reply, "tools": tools, "tier": tier, "cost_usd": cost,
+                "trace": trace, "elapsed_s": elapsed_s,
+            })
         except urllib.error.URLError as e:
             return self._json(502, {"error": f"Letta unreachable: {e.reason}"})
         except Exception as e:  # noqa: BLE001
@@ -320,7 +380,7 @@ class Handler(BaseHTTPRequestHandler):
         model = payload.get("model") or "eva"
         stream = bool(payload.get("stream"))
         try:
-            reply, _tools, _tier, _cost = run_turn(message)
+            reply, _tools, _tier, _cost, _trace, _elapsed = run_turn(message)
         except urllib.error.URLError as e:
             return self._json(502, {"error": {"message": f"Letta unreachable: {e.reason}", "type": "server_error"}})
         except Exception as e:  # noqa: BLE001

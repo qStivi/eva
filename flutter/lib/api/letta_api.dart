@@ -18,11 +18,61 @@ class LettaException implements Exception {
   String toString() => 'LettaException: $message';
 }
 
-/// One assistant turn: the reply text plus any tools Eva invoked.
+/// One step of what Eva actually did on a turn — a reasoning aside or a tool
+/// call (paired with its own result) — in the order it happened. Mirrors
+/// eva-web/app.py's `_build_trace`; see
+/// docs/2026-08-22-tool-trace-transparency-spec.md.
+enum TraceKind { reasoning, toolCall }
+
+class TraceEntry {
+  final TraceKind kind;
+  final String? text; // reasoning only
+  final String name; // tool call only
+  final dynamic args; // tool call only — decoded JSON (Map/List/String) or null
+  final String? status; // tool call only — "success" / an error status / null
+  final String? result; // tool call only — the tool's return, stringified
+  final bool truncated; // tool call only — result was cut short
+
+  const TraceEntry.reasoning(String this.text)
+      : kind = TraceKind.reasoning,
+        name = '',
+        args = null,
+        status = null,
+        result = null,
+        truncated = false;
+
+  const TraceEntry.toolCall({
+    required this.name,
+    this.args,
+    this.status,
+    this.result,
+    this.truncated = false,
+  })  : kind = TraceKind.toolCall,
+        text = null;
+
+  factory TraceEntry.fromJson(Map<String, dynamic> j) {
+    if (j['type'] == 'reasoning') {
+      return TraceEntry.reasoning((j['text'] as String?) ?? '');
+    }
+    return TraceEntry.toolCall(
+      name: (j['name'] as String?) ?? '?',
+      args: j['args'],
+      status: j['status'] as String?,
+      result: j['result'] as String?,
+      truncated: j['truncated'] == true,
+    );
+  }
+}
+
+/// One assistant turn: the reply text, any tools Eva invoked (for the app's
+/// existing hardcoded tags), and the full step-by-step trace for the
+/// expandable "N tools used · thought for Ns" disclosure.
 class LettaReply {
   final String text;
   final List<String> tools;
-  const LettaReply(this.text, this.tools);
+  final List<TraceEntry> trace;
+  final double? elapsedSeconds;
+  const LettaReply(this.text, this.tools, {this.trace = const [], this.elapsedSeconds});
 }
 
 class AgentSummary {
@@ -48,15 +98,22 @@ class Passage {
 
 enum HistoryRole { user, assistant }
 
-/// One real turn from the conversation transcript — only what's needed to
-/// render it. System-role nudges, tool calls/returns, and reasoning are
-/// deliberately not represented here; the transcript view only ever shows
-/// what was actually said, same as the live send/receive path already does.
+/// One real turn from the conversation transcript. `trace` and `elapsed`
+/// reconstruct the same disclosure the live send path gets, from history —
+/// see docs/2026-08-22-tool-trace-transparency-spec.md.
 class HistoryMessage {
   final HistoryRole role;
   final String text;
   final DateTime at;
-  const HistoryMessage({required this.role, required this.text, required this.at});
+  final List<TraceEntry> trace;
+  final double? elapsedSeconds;
+  const HistoryMessage({
+    required this.role,
+    required this.text,
+    required this.at,
+    this.trace = const [],
+    this.elapsedSeconds,
+  });
 }
 
 /// Eva's scheduled-check-in config, from eva-task-runner via eva-web's
@@ -89,6 +146,12 @@ class CheckinConfig {
         nextDueAt: (j['next_due_at'] as num).toDouble(),
       );
 }
+
+// Tool-return bodies reconstructed from raw history aren't pre-truncated by
+// eva-web (this reads straight from Letta) — cap them the same way, so a
+// GetLiveContext-sized dump doesn't bloat a history load. Matches eva-web's
+// TRACE_RETURN_CHARS.
+const int _traceReturnChars = 2000;
 
 class LettaApi {
   final String baseUrl;
@@ -154,7 +217,12 @@ class LettaApi {
     if (decoded['error'] != null) throw LettaException(decoded['error'].toString());
     final reply = (decoded['reply'] as String?) ?? '(no reply)';
     final tools = ((decoded['tools'] as List?) ?? const []).cast<String>();
-    return LettaReply(reply, tools);
+    final trace = ((decoded['trace'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => TraceEntry.fromJson(e.cast<String, dynamic>()))
+        .toList();
+    final elapsed = (decoded['elapsed_s'] as num?)?.toDouble();
+    return LettaReply(reply, tools, trace: trace, elapsedSeconds: elapsed);
   }
 
   Future<LettaReply> sendMessage(String agentId, String text) async {
@@ -286,32 +354,90 @@ class LettaApi {
     final List raw = decoded is List
         ? decoded
         : (decoded is Map && decoded['messages'] is List ? decoded['messages'] as List : const []);
+    return parseHistory(raw);
+  }
+
+  /// Rebuilds the transcript, grouping each assistant turn's reasoning/tool
+  /// steps under the `assistant_message` they led to — the same trace shape
+  /// the live send path gets from eva-web, reconstructed from raw history so
+  /// a reload renders identically. Mirrors eva-web's `_build_trace`. Public
+  /// (like [parseReply]) so it's directly unit-testable.
+  static List<HistoryMessage> parseHistory(List raw) {
+    final returnById = <String, Map>{};
+    for (final m in raw) {
+      if (m is Map && m['message_type'] == 'tool_return_message') {
+        final id = m['tool_call_id'];
+        if (id is String) returnById[id] = m;
+      }
+    }
+
     final out = <HistoryMessage>[];
+    var pendingTrace = <TraceEntry>[];
+    DateTime? turnStart;
+
+    String? textOf(dynamic content) {
+      if (content is String) return content;
+      if (content is List) {
+        return content.whereType<Map>().map((p) => (p['text'] as String?) ?? '').join('\n');
+      }
+      return null;
+    }
+
+    DateTime dateOf(Map m) {
+      final s = m['date'] as String?;
+      return (s != null ? DateTime.tryParse(s) : null)?.toLocal() ?? DateTime.now();
+    }
+
     for (final m in raw) {
       if (m is! Map) continue;
-      final HistoryRole? role = switch (m['message_type']) {
-        'user_message' => HistoryRole.user,
-        'assistant_message' => HistoryRole.assistant,
-        _ => null, // system nudges, tool calls/returns, reasoning — not shown
-      };
-      if (role == null) continue;
-      final content = m['content'];
-      String text;
-      if (content is String) {
-        text = content;
-      } else if (content is List) {
-        text = content
-            .whereType<Map>()
-            .map((p) => (p['text'] as String?) ?? '')
-            .join('\n');
-      } else {
-        continue;
+      switch (m['message_type']) {
+        case 'user_message':
+          final text = textOf(m['content'])?.trim();
+          pendingTrace = []; // a fresh turn starts here
+          turnStart = dateOf(m);
+          if (text == null || text.isEmpty) continue;
+          out.add(HistoryMessage(role: HistoryRole.user, text: text, at: turnStart));
+        case 'reasoning_message':
+          final text = (m['reasoning'] as String?)?.trim();
+          if (text != null && text.isNotEmpty) pendingTrace.add(TraceEntry.reasoning(text));
+        case 'tool_call_message':
+          final call = m['tool_call'];
+          if (call is! Map || call['name'] is! String) continue;
+          final ret = returnById[call['tool_call_id']];
+          dynamic args;
+          try {
+            args = jsonDecode((call['arguments'] as String?) ?? 'null');
+          } catch (_) {
+            args = call['arguments'];
+          }
+          var result = ret?['tool_return'] is String ? ret!['tool_return'] as String : null;
+          var truncated = false;
+          if (result != null && result.length > _traceReturnChars) {
+            result = result.substring(0, _traceReturnChars);
+            truncated = true;
+          }
+          pendingTrace.add(TraceEntry.toolCall(
+            name: call['name'] as String,
+            args: args,
+            status: ret?['status'] as String?,
+            result: result,
+            truncated: truncated,
+          ));
+        case 'assistant_message':
+          final text = textOf(m['content'])?.trim();
+          if (text == null || text.isEmpty) continue;
+          final at = dateOf(m);
+          final elapsed =
+              turnStart != null ? at.difference(turnStart).inMilliseconds / 1000.0 : null;
+          out.add(HistoryMessage(
+            role: HistoryRole.assistant,
+            text: text,
+            at: at,
+            trace: pendingTrace,
+            elapsedSeconds: elapsed != null && elapsed > 0 ? elapsed : null,
+          ));
+          pendingTrace = [];
       }
-      text = text.trim();
-      if (text.isEmpty) continue;
-      final dateStr = m['date'] as String?;
-      final at = (dateStr != null ? DateTime.tryParse(dateStr) : null)?.toLocal() ?? DateTime.now();
-      out.add(HistoryMessage(role: role, text: text, at: at));
     }
     return out;
   }

@@ -3,6 +3,7 @@
 // product feel alive until the real Letta backend is wired in. The real two-track
 // memory extraction is stood in for by cycling a few in-character replies.
 
+import '../api/letta_api.dart' show TraceEntry;
 import '../eva_tokens.dart';
 import 'package:flutter/material.dart';
 
@@ -51,6 +52,11 @@ class ChatMessage {
   /// Tool names Eva invoked on this turn (e.g. a web search), surfaced as a tag.
   final List<String> tools;
 
+  /// Full step-by-step trace (reasoning + tool calls) behind the "N tools
+  /// used · thought for Ns" disclosure. Empty for a plain-text reply.
+  final List<TraceEntry> trace;
+  final double? elapsedSeconds;
+
   const ChatMessage({
     required this.from,
     required this.text,
@@ -58,6 +64,8 @@ class ChatMessage {
     this.remembered = false,
     this.mood = EvaMood.neutral,
     this.tools = const [],
+    this.trace = const [],
+    this.elapsedSeconds,
   });
 }
 
