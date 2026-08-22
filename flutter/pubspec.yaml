@@ -45,6 +45,9 @@ dependencies:
   flutter_local_notifications: ^19.4.2
   firebase_core: ^4.13.0
   firebase_messaging: ^16.5.0
+  # Opens the eva-web approval page when an "approval needed" push is tapped
+  # (see lib/services/push_service.dart).
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

@@ -27,6 +27,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../config/eva_settings.dart';
 import '../firebase_options.dart';
@@ -48,12 +49,74 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     const InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     ),
+    // Runs when a background/killed-state notification is tapped. Must stay
+    // a top-level/static-reachable callback — this whole handler runs in its
+    // own isolate, same reason firebaseMessagingBackgroundHandler itself must.
+    onDidReceiveNotificationResponse: _onNotificationTapped,
   );
   await _showJobNotification(notifications, message.data);
 }
 
+/// Tap handler for a shown notification, wired in both the foreground
+/// (_initLocalNotifications) and background (the handler above) init calls.
+/// The payload is the raw FCM data map, JSON-encoded — see
+/// _showJobNotification. Only "approval" pushes carry a jobsUrl; anything
+/// else (job-completion pushes, etc.) just brings the app forward, which the
+/// OS already does on tap without any code here.
+@pragma('vm:entry-point')
+void _onNotificationTapped(NotificationResponse response) {
+  final payload = response.payload;
+  if (payload == null || payload.isEmpty) return;
+  try {
+    final data = jsonDecode(payload) as Map<String, dynamic>;
+    if (data['type'] == 'approval') {
+      final url = data['jobsUrl'] as String?;
+      if (url != null) {
+        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+    }
+  } catch (e) {
+    debugPrint('PushService: bad notification payload: $e');
+  }
+}
+
+/// Builds the one-tap eva-web /jobs URL, Basic-auth credentials embedded so
+/// tapping the notification doesn't stop at a login prompt — matches the
+/// plan's "should still be one tap" goal for the v1 approval surface (see
+/// docs/2026-08-22-delegate-to-claude-spec.md). Empty if either credential
+/// is unset (auth disabled, or not configured yet) since embedding an empty
+/// `:@` userinfo segment reads as malformed to some URL parsers.
+String? _jobsUrl(EvaSettings settings) {
+  final uri = Uri.tryParse(settings.webBaseUrl);
+  if (uri == null) return null;
+  if (settings.chatUser.isEmpty || settings.chatPassword.isEmpty) {
+    return uri.replace(path: '/jobs').toString();
+  }
+  return uri
+      .replace(
+        userInfo: '${Uri.encodeComponent(settings.chatUser)}:${Uri.encodeComponent(settings.chatPassword)}',
+        path: '/jobs',
+      )
+      .toString();
+}
+
 Future<void> _showJobNotification(
     FlutterLocalNotificationsPlugin notifications, Map<String, dynamic> data) async {
+  // Payload carries the type + a ready-to-launch jobsUrl (looked up fresh
+  // here, not baked in at push time, so it always reflects the device's
+  // current settings) — built once, used by _onNotificationTapped above.
+  String? payload;
+  if (data['type'] == 'approval') {
+    try {
+      final settings = await EvaSettings.load();
+      final url = _jobsUrl(settings);
+      if (url != null) {
+        payload = jsonEncode({'type': 'approval', 'jobsUrl': url});
+      }
+    } catch (e) {
+      debugPrint('PushService: could not build approval jobsUrl: $e');
+    }
+  }
   await notifications.show(
     DateTime.now().millisecondsSinceEpoch ~/ 1000,
     (data['title'] as String?) ?? 'Eva',
@@ -67,6 +130,7 @@ Future<void> _showJobNotification(
         priority: Priority.high,
       ),
     ),
+    payload: payload,
   );
 }
 
@@ -122,6 +186,7 @@ class PushService {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     await _notifications.initialize(
       const InitializationSettings(android: androidInit),
+      onDidReceiveNotificationResponse: _onNotificationTapped,
     );
     await _notifications
         .resolvePlatformSpecificImplementation<

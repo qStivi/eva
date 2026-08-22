@@ -76,9 +76,13 @@ def _access_token() -> str:
     return _token_cache["access_token"]
 
 
-def send(token: str, title: str, body: str):
+def send(token: str, title: str, body: str, extra_data: dict = None):
     """Send one FCM push to a device token. Raises on failure — callers should
-    treat this like any other best-effort push target (log and move on)."""
+    treat this like any other best-effort push target (log and move on).
+    extra_data merges into the data payload — e.g. {"type": "approval"} so
+    push_service.dart can tell an approval push apart from an ordinary
+    job-completion one and deep-link to the approval page on tap instead of
+    just opening the app."""
     sa = _load_service_account()
     access_token = _access_token()
     payload = json.dumps({
@@ -91,7 +95,7 @@ def send(token: str, title: str, body: str):
             # our code (push_service.dart) is the only thing that ever shows
             # a notification, in every app state, so there's one path to get
             # right instead of two disagreeing ones.
-            "data": {"title": title, "body": body[:400]},
+            "data": {"title": title, "body": body[:400], **(extra_data or {})},
             # Android needs this for delivery priority while the phone is
             # dozing/backgrounded — data-only messages default to normal
             # priority otherwise, which can be delayed significantly.

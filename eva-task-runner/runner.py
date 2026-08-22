@@ -483,7 +483,7 @@ def _inject_and_get_reply(text: str) -> str:
     return "\n".join(p.strip() for p in parts).strip()
 
 
-def _push(text: str, title: str):
+def _push(text: str, title: str, extra_data: dict = None):
     """Push via FCM to every device the Flutter app has registered. Each
     target is best-effort and independent: a stale/revoked token just gets
     logged and skipped (fcm.py doesn't try to prune it — Firebase will report
@@ -493,7 +493,7 @@ def _push(text: str, title: str):
         return
     for token in list_fcm_tokens():
         try:
-            fcm.send(token, title, text)
+            fcm.send(token, title, text, extra_data=extra_data)
         except Exception as e:  # noqa: BLE001
             sys.stderr.write("eva-task-runner: fcm push failed: %s\n" % e)
 
@@ -507,7 +507,10 @@ def _handle_pending_approval(job_id: str, spec: dict):
         set_moderation_flags(job_id, flags)
     task = (spec.get("task") or "?")[:200]
     flag_note = f" [flagged: {', '.join(flags)}]" if flags else ""
-    _push(f"Eva wants to run: {task}{flag_note}", "Approval needed")
+    # type=approval — push_service.dart deep-links to eva-web's /jobs page on
+    # tap for this one, instead of just opening the app (see
+    # docs/2026-08-22-delegate-to-claude-spec.md's approval-surface section).
+    _push(f"Eva wants to run: {task}{flag_note}", "Approval needed", extra_data={"type": "approval"})
 
 
 def _run_job(job_id: str, kind: str, spec: dict):
