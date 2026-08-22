@@ -103,8 +103,14 @@ def build() -> str:
         if loc:
             lines.append(loc)
 
+    # Explicit "nothing playing" lines, not just omission, for both of these —
+    # confirmed live (2026-08-22) that leaving the line out when idle reads to
+    # Eva as "unknown" rather than "known and empty," and she filled the gap
+    # with a fabricated example track/Steam level instead of saying nothing's
+    # on. Only actually omit the line when the fetch itself failed (state()
+    # returned None) — that's the one real "I don't know" case.
     sp = state("media_player.spotify")
-    if sp:
+    if sp is not None:
         st = sp.get("state")
         attrs = sp.get("attributes", {})
         title = attrs.get("media_title")
@@ -113,10 +119,16 @@ def build() -> str:
             who = f" by {artist}" if artist else ""
             verb = "playing" if st == "playing" else "paused on"
             lines.append(f'Spotify: {verb} "{title}"{who}.')
+        else:
+            lines.append("Spotify: nothing playing right now.")
 
     steam = state("sensor.steam_now_playing")
-    if steam and steam.get("state") not in (None, "", "unknown", "unavailable"):
-        lines.append(f"Steam: playing {steam['state']}.")
+    if steam is not None:
+        game = steam.get("state")
+        if game not in (None, "", "unknown", "unavailable"):
+            lines.append(f"Steam: playing {game}.")
+        else:
+            lines.append("Steam: not playing anything right now.")
 
     return "\n".join(lines)
 
