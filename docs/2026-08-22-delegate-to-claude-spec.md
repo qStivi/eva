@@ -10,7 +10,10 @@ specs: [situational context](2026-08-22-situational-context-spec.md),
 [timers/reminders](2026-08-22-timers-reminders-spec.md),
 [tool-discovery](2026-08-22-tool-discovery-spec.md),
 [tool-trace transparency](2026-08-22-tool-trace-transparency-spec.md), and
-[admin panel](2026-08-22-eva-admin-panel-spec.md)._
+[admin panel](2026-08-22-eva-admin-panel-spec.md). Phase 3 — Flutter
+approval cards, `spawn_task`, queueing, trust allowlists, job history, and
+the eva-web-router-bypass fix — has its own spec:
+[hands-phase3](2026-08-22-hands-phase3-spec.md)._
 
 ## The idea, in one line
 
