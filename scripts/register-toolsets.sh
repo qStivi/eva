@@ -3,10 +3,11 @@
 #   1. build tools/use_toolset.py, search_tools.py, call_tool.py with the group
 #      registry injected, upsert them into Letta;
 #   2. set the eva agent to the lean 'core' set (attach core, detach every group tool).
-# Groups then load on demand — either the old way (use_toolset("home"|"media"|...),
-# still supported as a fallback) or the new way (search_tools(query) then
-# call_tool(name, args), which needs no attach step at all — see
-# docs/2026-08-22-tool-discovery-spec.md).
+# Groups load on demand via search_tools(query) then call_tool(name, args) — no
+# attach step needed at all (docs/2026-08-22-tool-discovery-spec.md). use_toolset
+# is RETIRED as of 2026-08-22 (not in 'core' any more, so this script detaches it
+# if found attached) — still built/registered here in case it's ever needed again,
+# but Eva doesn't have it in hand day to day.
 #
 # Run AFTER the domain tools exist in Letta's registry (e.g. scripts/register-ha-mcp.sh).
 # Idempotent — safe to re-run whenever toolsets.json changes.

@@ -1,5 +1,5 @@
 {
-  "_comment": "Source of truth for Eva's lazy tool loading. 'core' is always attached; each group in 'groups' is gated behind either use_toolset (old: attach/detach, next-turn lag) or search_tools+call_tool (new: no attach step, same-turn — see docs/2026-08-22-tool-discovery-spec.md). register-toolsets.sh injects 'groups' into all three tools and applies 'core' to the eva agent. 'index'/'keywords' still drive the eva-web pre-load fallback (toolset_router.py) — kept for now as a safety net alongside the new path, not yet retired.",
+  "_comment": "Source of truth for Eva's lazy tool loading. 'core' is always attached; each group in 'groups' is gated behind search_tools+call_tool (no attach step, same-turn — see docs/2026-08-22-tool-discovery-spec.md). register-toolsets.sh injects 'groups' into use_toolset/search_tools/call_tool and applies 'core' to the eva agent. use_toolset and eva-web's keyword pre-load (toolset_router.py) are RETIRED as of 2026-08-22 (still registered/present in the codebase, just no longer attached/called) — a real live failure showed the keyword pre-load putting the wrong tool in her hands before she could search properly. 'index'/'keywords' below are now dead weight, kept only until toolset_router.py is fully removed.",
   "core": [
     "memory_insert",
     "memory_replace",
@@ -10,7 +10,6 @@
     "HassListAddItem",
     "HassListCompleteItem",
     "HassListRemoveItem",
-    "use_toolset",
     "search_tools",
     "call_tool",
     "create_timer"

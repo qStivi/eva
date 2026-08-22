@@ -1,10 +1,11 @@
 def search_tools(query: str) -> str:
     """Search for a tool you don't currently have — the house, media, house
-    extras (broadcast/timers), and research groups all live here now instead
-    of behind use_toolset. Call this whenever you need to do something outside
-    your everyday tools, then call it with call_tool(name, args) — no loading
-    step, and it works the same turn. Search always sees everything, so if
-    it's not in the results it genuinely isn't available right now.
+    extras (broadcast/timers), and research groups all live here. Call this
+    BEFORE telling Stephan you can't do something (check the house, control
+    media, dig into something) — don't assume; search first, it's cheap and
+    instant. Then call the match with call_tool(name, args) — no loading step,
+    same turn. Search always sees everything, so if it's genuinely not in the
+    results, that's a real "I can't right now," not a guess.
 
     Args:
         query: what you're trying to do, in your own words (e.g. "turn off

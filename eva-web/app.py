@@ -53,12 +53,16 @@ API_KEY = os.environ.get("EVA_API_KEY", "")
 RUNNER_HOST = os.environ.get("RUNNER_HOST", "http://localhost:8286").rstrip("/")
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-try:
-    # Intent-based toolset pre-loading (see toolset_router.py). Best-effort: if it's
-    # missing or errors, chat still works — Eva just keeps whatever tools she has.
-    from toolset_router import preload_for
-except Exception:  # noqa: BLE001
-    preload_for = None
+# Intent-based toolset pre-loading (toolset_router.py) is RETIRED as of
+# 2026-08-22 — superseded by search_tools/call_tool (tools/search_tools.py,
+# tools/call_tool.py; see docs/2026-08-22-tool-discovery-spec.md). Root cause
+# for retiring now rather than later: the keyword preload pre-attached the
+# WHOLE 'media' group (including HassMediaSearchAndPlay, a start-something-new
+# action) before Eva ever saw a real "what's currently playing" question —
+# she reached for the wrong pre-attached tool instead of searching, and it
+# failed. Leaving the module in place (unused) rather than deleting it, in
+# case the new path needs a fallback later.
+preload_for = None
 
 try:
     # Complexity-based cloud model routing (see model_router.py). Best-effort: if
