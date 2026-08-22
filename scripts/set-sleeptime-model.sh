@@ -16,15 +16,18 @@
 # agents (eva/eva-spike) -- only the sleeptime agent in each group.
 #
 # Usage:  ./scripts/set-sleeptime-model.sh [model-handle]
-#   default: mistral/mistral-medium-latest -- matches model_router's "mid"
-#   tier, a reasonable quality bar for judgment calls (perspective fixes,
-#   dedup, the source-caution rule from the 2026-08-22 incident) without
-#   paying "hard" tier prices for something that runs unattended in the
-#   background, unread unless something goes wrong.
+#   default: mistral/mistral-large-latest -- matches model_router's "mid"
+#   tier (see its TIERS comment, updated 2026-08-22: same performance bar as
+#   mistral-medium-latest per Mistral's own comparison guide, a third the
+#   input cost and a fifth the output cost thanks to Large 3's MoE
+#   architecture -- strictly better, not a tradeoff). A good quality bar for
+#   judgment calls (perspective fixes, dedup, the source-caution rule from
+#   the 2026-08-22 incident) without paying "hard" tier prices for something
+#   that runs unattended in the background, unread unless something goes wrong.
 set -euo pipefail
 
 LETTA="${LETTA_HOST:-http://localhost:8283}"
-HANDLE="${1:-mistral/mistral-medium-latest}"
+HANDLE="${1:-mistral/mistral-large-latest}"
 
 python3 -c "
 import json, urllib.request

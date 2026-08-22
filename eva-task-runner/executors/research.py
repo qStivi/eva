@@ -26,10 +26,13 @@ import urllib.request
 SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://127.0.0.1:8088").rstrip("/")
 LETTA_HOST = os.environ.get("LETTA_HOST", "http://localhost:8283").rstrip("/")
 MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
-CLOUD_MODEL = os.environ.get("RESEARCH_CLOUD_MODEL", "mistral-medium-latest")
+CLOUD_MODEL = os.environ.get("RESEARCH_CLOUD_MODEL", "mistral-large-latest")
 COST_LOG = os.path.expanduser("~/.config/eva-web/cost_log.jsonl")  # same log model_router uses
 # $/MTok, matching model_router's "mid" tier pricing for this same model.
-PRICE_IN, PRICE_OUT = 1.50, 7.50
+# mistral-large-latest as of 2026-08-22 (was mistral-medium-latest — same
+# performance bar per Mistral's own comparison guide, a third the input cost
+# and a fifth the output cost; see model_router.py's TIERS comment).
+PRICE_IN, PRICE_OUT = 0.50, 1.50
 
 # Only real constraint is context length, not an arbitrary "don't overdo it" cap —
 # Mistral's context window has plenty of room for this. Env-overridable per job kind

@@ -58,10 +58,22 @@ LOG_PATH = os.path.expanduser("~/.config/eva-web/cost_log.jsonl")
 
 # tier -> (Letta model handle, $/MTok base input, $/MTok output)
 # Confirmed 2026-08-13 against platform.claude.com/docs/en/about-claude/pricing
-# and mistral.ai/pricing/api.
+# and mistral.ai/pricing/api. Re-picked 2026-08-22 after comparing Mistral's
+# whole current lineup on docs.mistral.ai/inference/model-selection-guide:
+#   - cheap: ministral-8b-latest -> mistral-small-latest. Same $0.15/M input,
+#     performance bar goes 2/4 -> 3/4, gains agentic/tool-calling support
+#     Ministral doesn't have. Output goes $0.15 -> $0.60/M but chat replies are
+#     short (tens-hundreds of tokens) -- fractions of a cent either way.
+#   - mid: mistral-medium-latest -> mistral-large-latest. Same 4/4 performance
+#     bar, but Large 3's MoE architecture (41B active of 675B total, vs.
+#     Medium 3.5's 128B fully dense) makes it a THIRD the input price and a
+#     FIFTH the output price ($0.50/$1.50 vs $1.50/$7.50) -- not a tradeoff,
+#     strictly better on both axes per Mistral's own numbers. mistral-medium-
+#     latest is also what sleeptime (set-sleeptime-model.sh) and research.py's
+#     CLOUD_MODEL used -- switched those to match, same reasoning.
 TIERS = {
-    "cheap": ("mistral/ministral-8b-latest", 0.15, 0.15),
-    "mid": ("mistral/mistral-medium-latest", 1.50, 7.50),
+    "cheap": ("mistral/mistral-small-latest", 0.15, 0.60),
+    "mid": ("mistral/mistral-large-latest", 0.50, 1.50),
     "hard": ("anthropic/claude-opus-5", 5.00, 25.00),
 }
 CACHE_WRITE_MULT = 1.25  # Anthropic 5-min cache write multiplier (Letta's default TTL)
