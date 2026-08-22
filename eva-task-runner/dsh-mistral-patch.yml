@@ -1,0 +1,44 @@
+# DeepSeek Harness (dsh) patch layer that repoints its bundled "DeepSeek"
+# chat-completions adapter at Mistral instead — see
+# docs/2026-08-22-delegate-to-claude-spec.md and executors/harness.py.
+#
+# Passed to every headless invocation via `dsh --profile headless --patch
+# <this file>`. The provider route stays literally named "deepseek-official"
+# (hardcoded inside the @deepseek-ai/dsh-llm-deepseek plugin itself, not
+# settable via config) even though it's actually hitting Mistral's API —
+# surprising on sight, worth this comment. Confirmed empirically 2026-08-22
+# that the adapter's own chat-completions request builder is otherwise a
+# clean, generic OpenAI-style body (model/messages/stream/tools/temperature/
+# max_tokens/stop) — genuinely reusable against any OpenAI-compatible
+# endpoint, Mistral included.
+#
+# GOTCHA (the reason harness.py runs a local stripping proxy in front of
+# this baseURL instead of pointing straight at https://api.mistral.ai/v1):
+# this adapter ALWAYS resolves and sends a DeepSeek-specific "thinking"
+# and/or "reasoning_effort" field on every request — there is no config
+# combination that produces a request with neither field, confirmed by
+# exhausting every knob (thinking: disabled still emits `thinking:
+# {type:"disabled"}`; leaving it unset emits `thinking:{type:"enabled"},
+# reasoning_effort:"high"`). Mistral's chat-completions schema is strict
+# (`extra_forbidden`) and 422s on either field — same failure class as the
+# 2026-08-13 Letta/Mistral BYOK bug documented in model_router.py. Confirmed
+# live: the exact same request with `thinking` stripped succeeds. baseURL
+# below points at harness.py's own loopback proxy (strips the field, forwards
+# everything else verbatim to the real Mistral API), not at Mistral directly.
+- id: llm-deepseek
+  config:
+    baseURL: http://127.0.0.1:8998 # harness.py's stripping proxy, not Mistral directly — see comment above
+    apiKeyEnv: MISTRAL_API_KEY # set in the launching environment by harness.py, fetched fresh from Letta's provider store each run
+    models:
+      - id: mistral-large-latest
+        name: Mistral Large 3
+        contextWindow: 131072
+        maxTokens: 4096
+      - id: codestral-2508
+        name: Codestral 25.08
+        contextWindow: 131072
+        maxTokens: 4096
+- id: agent-default-model
+  config:
+    provider: deepseek-official # the hardcoded route name — see header comment
+    model: mistral-large-latest # harness.py overrides this per-job via --patch when spec asks for codestral-2508

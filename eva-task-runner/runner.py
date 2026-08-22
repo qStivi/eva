@@ -61,7 +61,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fcm  # noqa: E402
+import moderation  # noqa: E402
 from executors import EXECUTORS  # noqa: E402
+
+# Job kinds that must sit at pending_approval (not dispatch immediately) —
+# anything that can act on the host with real effect. See
+# docs/2026-08-22-delegate-to-claude-spec.md's "pending_approval gate".
+APPROVAL_REQUIRED_KINDS = {"harness"}
 
 PORT = int(os.environ.get("EVA_RUNNER_PORT", "8286"))
 HOST = "127.0.0.1"  # loopback only, always — see module docstring
@@ -92,9 +98,17 @@ def init_db():
                 result TEXT,
                 error TEXT,
                 created_at REAL NOT NULL,
-                updated_at REAL NOT NULL
+                updated_at REAL NOT NULL,
+                moderation_flags TEXT
             )
         """)
+        # ALTER TABLE ADD COLUMN for anyone with an existing DB from before
+        # pending_approval (harness jobs) existed — see checkin_config's
+        # identical pattern above.
+        try:
+            conn.execute("ALTER TABLE jobs ADD COLUMN moderation_flags TEXT")
+        except sqlite3.OperationalError:
+            pass  # already has it
         # FCM device tokens registered by the Flutter app (one row per
         # device/install; opaque strings from Firebase, not URLs — the runner
         # never sends anything directly to client-supplied addresses, only to
@@ -326,15 +340,24 @@ def _fire_timer(t: dict):
         sys.stderr.write("eva-task-runner: timer inject failed: %s\n" % e)
 
 
-def create_job(kind: str, spec: dict) -> str:
+def create_job(kind: str, spec: dict, state: str = "pending") -> str:
+    """state defaults to 'pending' (dispatches immediately); pass
+    'pending_approval' for a kind that needs a human yes before it runs —
+    see APPROVAL_REQUIRED_KINDS below."""
     job_id = uuid.uuid4().hex[:12]
     now = time.time()
     with _db_lock, _db() as conn:
         conn.execute(
             "INSERT INTO jobs (id, kind, spec, state, created_at, updated_at) "
-            "VALUES (?, ?, ?, 'pending', ?, ?)",
-            (job_id, kind, json.dumps(spec), now, now))
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (job_id, kind, json.dumps(spec), state, now, now))
     return job_id
+
+
+def set_moderation_flags(job_id: str, flags: list):
+    with _db_lock, _db() as conn:
+        conn.execute("UPDATE jobs SET moderation_flags = ? WHERE id = ?",
+                     (json.dumps(flags) if flags else None, job_id))
 
 
 def get_job(job_id: str):
@@ -404,8 +427,11 @@ def _report(job_id: str):
 
 def _format_report(job: dict) -> str:
     spec = json.loads(job["spec"])
+    if job["state"] == "denied":
+        label = spec.get("task") or spec.get("topic") or job["kind"]
+        return f"Stephan didn't approve the {job['kind']} task you proposed (\"{label}\") — it never ran."
     if job["state"] == "failed":
-        label = spec.get("topic") or job["kind"]
+        label = spec.get("topic") or spec.get("task") or job["kind"]
         return f"The {job['kind']} job you kicked off (\"{label}\") failed: {job['error']}"
     result = json.loads(job["result"] or "{}")
     if job["kind"] == "research":
@@ -415,6 +441,11 @@ def _format_report(job: dict) -> str:
         src_lines = "\n".join(f"- {s.get('title')} ({s.get('url')})" for s in sources)
         return (f"The research you kicked off on \"{topic}\" finished.\n\n"
                 f"Summary: {summary}" + (f"\n\nSources:\n{src_lines}" if src_lines else ""))
+    if job["kind"] == "harness":
+        task = spec.get("task", "?")
+        output = result.get("output", "(no output)")
+        exit_note = "" if result.get("exit_code") == 0 else f" (exit code {result.get('exit_code')})"
+        return f"The task you delegated — \"{task}\" — finished{exit_note}.\n\n{output}"
     return f"The {job['kind']} job finished: {json.dumps(result)}"
 
 
@@ -467,6 +498,18 @@ def _push(text: str, title: str):
             sys.stderr.write("eva-task-runner: fcm push failed: %s\n" % e)
 
 
+def _handle_pending_approval(job_id: str, spec: dict):
+    """Runs the moderation pre-check (best-effort, see moderation.py) and
+    fires the approval push. Does NOT dispatch the executor — that only
+    happens via _handle_job_approve, once you've said yes."""
+    flags = moderation.check(spec.get("task") or "")
+    if flags:
+        set_moderation_flags(job_id, flags)
+    task = (spec.get("task") or "?")[:200]
+    flag_note = f" [flagged: {', '.join(flags)}]" if flags else ""
+    _push(f"Eva wants to run: {task}{flag_note}", "Approval needed")
+
+
 def _run_job(job_id: str, kind: str, spec: dict):
     set_state(job_id, "running")
     try:
@@ -501,6 +544,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_checkin_trigger()
         if self.path == "/timers":
             return self._handle_create_timer()
+        if self.path.startswith("/jobs/") and self.path.endswith("/approve"):
+            return self._handle_job_approve(self.path[len("/jobs/"):-len("/approve")])
+        if self.path.startswith("/jobs/") and self.path.endswith("/deny"):
+            return self._handle_job_deny(self.path[len("/jobs/"):-len("/deny")])
         if self.path != "/jobs":
             return self._json(404, {"error": "not found"})
         try:
@@ -513,9 +560,35 @@ class Handler(BaseHTTPRequestHandler):
         if kind not in EXECUTORS:
             return self._json(400, {"error": "unknown kind %r, have: %s" %
                                      (kind, ", ".join(EXECUTORS))})
+        if kind in APPROVAL_REQUIRED_KINDS:
+            job_id = create_job(kind, spec, state="pending_approval")
+            threading.Thread(target=_handle_pending_approval, args=(job_id, spec), daemon=True).start()
+            return self._json(201, {"job_id": job_id, "state": "pending_approval"})
         job_id = create_job(kind, spec)
         threading.Thread(target=_run_job, args=(job_id, kind, spec), daemon=True).start()
         self._json(201, {"job_id": job_id, "state": "pending"})
+
+    def _handle_job_approve(self, job_id: str):
+        """Auth is the caller's job — this loopback endpoint trusts whoever can
+        reach it, same as every other route here. eva-web is the only thing
+        that's supposed to reach it (Cloudflare-Access-gated for the phone),
+        never exposed on the LAN directly. See the spec's pending_approval
+        gate section."""
+        job = get_job(job_id)
+        if not job or job["state"] != "pending_approval":
+            return self._json(404, {"error": "no pending_approval job with that id"})
+        set_state(job_id, "pending")
+        spec = json.loads(job["spec"])
+        threading.Thread(target=_run_job, args=(job_id, job["kind"], spec), daemon=True).start()
+        self._json(200, {"ok": True, "state": "pending"})
+
+    def _handle_job_deny(self, job_id: str):
+        job = get_job(job_id)
+        if not job or job["state"] != "pending_approval":
+            return self._json(404, {"error": "no pending_approval job with that id"})
+        set_state(job_id, "denied")
+        threading.Thread(target=_report, args=(job_id,), daemon=True).start()
+        self._json(200, {"ok": True, "state": "denied"})
 
     def _handle_push_registration(self):
         """The Flutter app's FCM device token, registered/dropped as it
@@ -619,7 +692,7 @@ class Handler(BaseHTTPRequestHandler):
             job = get_job(self.path[len("/jobs/"):])
             if not job:
                 return self._json(404, {"error": "no such job"})
-            for key in ("spec", "result"):
+            for key in ("spec", "result", "moderation_flags"):
                 if job.get(key):
                     job[key] = json.loads(job[key])
             return self._json(200, job)

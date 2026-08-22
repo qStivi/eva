@@ -31,6 +31,13 @@ writing its own settings); /api/checkin/trigger accepts *either* Basic auth
 or the same Bearer key as /v1/*, so a Home Assistant automation can fire an
 immediate check-in ("Stephan just got home") the same way it already talks
 to the /v1 routes, without a third credential to manage.
+
+/jobs and /api/jobs/* are the v1 (stopgap) HITL approval surface for
+delegate_to_harness jobs — see docs/2026-08-22-delegate-to-claude-spec.md.
+/jobs is a plain server-rendered page (Basic-auth gated, same as everything
+else here); /api/jobs/pending, /api/jobs/<id>/approve, and
+/api/jobs/<id>/deny proxy straight through to eva-task-runner. Phase 3
+replaces this with a real Flutter screen.
 """
 import base64
 import hmac
@@ -349,6 +356,85 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             return self._json(502, {"error": f"eva-task-runner unreachable: {e}"})
 
+    def _render_jobs_page(self):
+        """v1 stopgap approval surface — docs/2026-08-22-delegate-to-claude-spec.md
+        §4. A plain server-rendered page, not a Flutter screen: fast to ship,
+        good enough to actually use the feature end to end. Phase 3 replaces
+        this with a real in-app card; this whole method goes away then."""
+        try:
+            with urllib.request.urlopen(RUNNER_HOST + "/jobs?state=pending_approval", timeout=10) as r:
+                jobs = json.loads(r.read().decode())
+        except Exception as e:  # noqa: BLE001
+            jobs = []
+            fetch_error = str(e)
+        else:
+            fetch_error = None
+
+        def esc(s):
+            return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+        cards = []
+        for j in jobs:
+            spec = json.loads(j["spec"]) if isinstance(j["spec"], str) else j["spec"]
+            flags = json.loads(j["moderation_flags"]) if j.get("moderation_flags") and isinstance(j["moderation_flags"], str) else (j.get("moderation_flags") or [])
+            flag_html = (f'<div class="flags">⚠ flagged: {esc(", ".join(flags))}</div>' if flags else "")
+            cards.append(f'''
+              <div class="card" data-id="{esc(j["id"])}">
+                <div class="kind">{esc(j["kind"])}</div>
+                <div class="task">{esc(spec.get("task") or spec.get("topic") or "(no task text)")}</div>
+                {flag_html}
+                <div class="meta">workdir: {esc(spec.get("workdir") or "(default)")} · model: {esc(spec.get("model") or "(default)")}</div>
+                <div class="btns">
+                  <button class="approve" onclick="act('{esc(j["id"])}','approve')">Approve</button>
+                  <button class="deny" onclick="act('{esc(j["id"])}','deny')">Deny</button>
+                </div>
+              </div>''')
+        body_html = "".join(cards) if cards else '<p class="empty">Nothing waiting on approval right now.</p>'
+        error_html = f'<p class="empty" style="color:#f38ba8">Could not reach eva-task-runner: {esc(fetch_error)}</p>' if fetch_error else ""
+
+        html = f"""<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eva — pending approvals</title>
+<style>
+  :root {{ --bg: #181926; --panel: #1e2030; --panel2: #24273a; --text: #cad3f5;
+    --muted: #8087a2; --accent: #c6a0f6; --warn: #f5a97f; --bad: #f38ba8; --ok: #a6da95; }}
+  * {{ box-sizing: border-box; }}
+  body {{ background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif;
+    margin: 0; padding: 20px; max-width: 560px; margin-inline: auto; }}
+  h1 {{ font-size: 18px; }}
+  .card {{ background: var(--panel); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }}
+  .kind {{ font-size: 12px; text-transform: uppercase; color: var(--accent); letter-spacing: .04em; }}
+  .task {{ margin: 6px 0; white-space: pre-wrap; }}
+  .flags {{ color: var(--warn); font-size: 14px; margin-bottom: 4px; }}
+  .meta {{ color: var(--muted); font-size: 13px; margin-bottom: 10px; }}
+  .btns {{ display: flex; gap: 10px; }}
+  button {{ flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 15px;
+    font-weight: 600; cursor: pointer; }}
+  .approve {{ background: var(--ok); color: #181926; }}
+  .deny {{ background: var(--bad); color: #181926; }}
+  .empty {{ color: var(--muted); }}
+</style></head><body>
+<h1>Pending approvals</h1>
+{error_html}
+<div id="cards">{body_html}</div>
+<script>
+async function act(id, action) {{
+  const res = await fetch('/api/jobs/' + id + '/' + action, {{method: 'POST'}});
+  if (res.ok) {{
+    document.querySelector('[data-id="' + id + '"]').remove();
+  }} else {{
+    alert('Failed: ' + res.status);
+  }}
+}}
+</script>
+</body></html>"""
+        payload = html.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def _file(self, path: str, ctype: str):
         try:
             with open(path, "rb") as f:
@@ -388,6 +474,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, model_router.running_total())
         if self.path == "/api/checkin/config":
             return self._proxy_to_runner("GET", "/checkin/config")
+        if self.path == "/api/jobs/pending":
+            return self._proxy_to_runner("GET", "/jobs?state=pending_approval")
+        if self.path == "/jobs":
+            return self._render_jobs_page()
         self.send_error(404)
 
     def do_POST(self):
@@ -404,6 +494,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._need_auth()
         if self.path == "/api/checkin/config":
             return self._proxy_to_runner("POST", "/checkin/config")
+        if self.path.startswith("/api/jobs/") and self.path.endswith("/approve"):
+            job_id = self.path[len("/api/jobs/"):-len("/approve")]
+            return self._proxy_to_runner("POST", f"/jobs/{job_id}/approve")
+        if self.path.startswith("/api/jobs/") and self.path.endswith("/deny"):
+            job_id = self.path[len("/api/jobs/"):-len("/deny")]
+            return self._proxy_to_runner("POST", f"/jobs/{job_id}/deny")
         if self.path != "/api/chat":
             return self.send_error(404)
         try:

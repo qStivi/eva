@@ -22,13 +22,15 @@
       "HassMediaPlayerMute", "HassMediaPlayerUnmute"
     ],
     "house_extras": ["HassBroadcast", "HassCancelAllTimers"],
-    "research": ["research_task", "check_task"]
+    "research": ["research_task", "check_task"],
+    "work": ["delegate_to_harness", "check_task"]
   },
   "index": {
     "home": "the house itself — lights, switches, warmth (climate), and reading what's going on in the rooms",
     "media": "music and video — play, pause, skip, volume on the speakers and screens",
     "house_extras": "shouting a message to the speakers, and cancelling timers",
-    "research": "the way I search the web at all now — a real multi-search dig-in in the background, with a write-up and sources when it's done. web_url_read still works for a link you hand me directly."
+    "research": "the way I search the web at all now — a real multi-search dig-in in the background, with a write-up and sources when it's done. web_url_read still works for a link you hand me directly.",
+    "work": "proposing a real task for me to hand off — actual file edits, actual commands, running on the host. I can only ever ask; Stephan has to approve it on his phone before anything happens."
   },
   "_keywords_comment": "Used by eva-web/toolset_router.py to pre-attach a group when the user's message matches (word-boundary, case-insensitive). Bias slightly toward matching — a spare tool costs little, a missing one blocks Eva.",
   "keywords": {

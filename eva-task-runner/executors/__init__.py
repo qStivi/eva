@@ -5,7 +5,9 @@ registering it here. Keep it that boring: runner.py doesn't know or care what a
 kind actually does, only that it takes a spec and returns/raises.
 """
 from . import research
+from . import harness
 
 EXECUTORS = {
     "research": research.run,
+    "harness": harness.run,
 }

@@ -5,7 +5,23 @@ _Design session, 2026-08-22. This is Phase 2 of the "with hands" arc
 nothing built yet). Phase 0 (sleeptime) and Phase 1 (the `eva-task-runner`
 spine — job store, executors, injection, push) are both done and running
 live; this phase adds the first job kind that actually **does** something on
-the host, gated behind your approval. Not started. See also today's other
+the host, gated behind your approval. **Built same day (2026-08-22)** —
+`executors/harness.py` (+ its stripping proxy, see the gotcha comment in
+`dsh-mistral-patch.yml`), the `pending_approval` gate in `runner.py`,
+`moderation.py`'s pre-check, the v1 approval page + `/api/jobs/*` proxy in
+`eva-web/app.py`, and `delegate_to_harness` + the `work` toolset group.
+Verified live end to end: real `dsh` subprocess runs (both plain replies and
+actual file writes) against `mistral-large-latest` and `codestral-2508`;
+the full submit→moderation-flag→pending_approval→approve/deny→report
+pipeline against an isolated test runner instance; and one real
+search_tools→call_tool→delegate_to_harness call through eva-spike's actual
+Letta tool-calling. Not yet exercised: a job's completion report actually
+reaching a live conversation end-to-end (deliberately avoided during
+testing — see [[eva-testing-use-spike-agent]]'s recurrence #3 for why: the
+runner's `_report()` always targets whichever `AGENT_ID` it's configured
+with, regardless of which agent submitted the job, so this needed a
+dedicated isolated-runner test instead). Claude Code escalation (§ Open
+questions) still not built, by choice. See also today's other
 specs: [situational context](2026-08-22-situational-context-spec.md),
 [timers/reminders](2026-08-22-timers-reminders-spec.md),
 [tool-discovery](2026-08-22-tool-discovery-spec.md),
