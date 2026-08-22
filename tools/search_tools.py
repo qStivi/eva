@@ -44,6 +44,22 @@ def search_tools(query: str) -> str:
     for name, hint in EXTRA_HINTS.items():
         if name in by_name:
             by_name[name] += hint
+    # All Hass* tools are HA Assist *intents* (the same targeting voice commands
+    # use), not generic entity API calls — they take 'name'/'area'/'floor', never
+    # 'entity_id' (that's not a validation gap, it's just not part of this
+    # layer's schema). A real live failure: HassClimateSetTemperature called
+    # with entity_id got silently ignored, fell back to matching every climate
+    # entity by domain alone, and hit an ambiguous MULTIPLE_TARGETS error.
+    HASS_TARGETING_HINT = (
+        " HINT: this is an HA Assist intent — target it with 'name' (and/or "
+        "'area'/'floor' if the name alone is ambiguous), like a voice command "
+        "would. It does NOT take 'entity_id' — passing one gets silently "
+        "ignored and can make matching worse (falls back to matching "
+        "everything in that domain), not better."
+    )
+    for name in by_name:
+        if name.startswith("Hass"):
+            by_name[name] += HASS_TARGETING_HINT
 
     words = [w for w in re.split(r"\W+", (query or "").lower()) if w]
     scored = []
