@@ -3,8 +3,15 @@
 _Design session, 2026-08-22. The HA-fields half (below, up to "Conversational
 recall") is now **built** — `eva-web/situational_context.py`, wired into
 `letta_send`'s single choke point, block created+attached to both `eva` and
-`eva-spike`. The **conversational recall** section is still just a design,
-not built. One of several specs from the same session — see also
+`eva-spike` (`scripts/create-situational-context-block.sh`) and marked
+**`read_only`**. That flag matters: a live incident the same day had Eva
+fabricate fake Spotify/Steam data, then use her own `memory_insert`/
+`memory_replace` tools to write the fabrication into the block itself —
+`read_only` makes that tool call fail cleanly instead, while eva-web's own
+refresh (the agent-scoped `PATCH /v1/agents/{id}/core-memory/blocks/{label}`
+admin path) is unaffected by the flag and keeps working. The **conversational
+recall** section below is still just a design, not built. One of several
+specs from the same session — see also
 [timers/reminders](2026-08-22-timers-reminders-spec.md) (built),
 [tool-discovery](2026-08-22-tool-discovery-spec.md) (built),
 [tool-trace transparency](2026-08-22-tool-trace-transparency-spec.md) (built),
