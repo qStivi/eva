@@ -3,8 +3,10 @@ def search_tools(query: str) -> str:
     extras (broadcast/timers), and research groups all live here. Call this
     BEFORE telling Stephan you can't do something (check the house, control
     media, dig into something) — don't assume; search first, it's cheap and
-    instant. Then call the match with call_tool(name, args) — no loading step,
-    same turn. Search always sees everything, so if it's genuinely not in the
+    instant. A match here is NOT directly callable — you don't have it, that's
+    the whole point of searching. Call it through call_tool(name, args), never
+    by its own name directly (that fails). No loading step either way, same
+    turn. Search always sees everything, so if it's genuinely not in the
     results, that's a real "I can't right now," not a guess.
 
     Args:
@@ -42,4 +44,7 @@ def search_tools(query: str) -> str:
             "matches": [],
             "hint": "no match — try different words, or call_tool anyway if you already know the exact name",
         })
-    return json.dumps({"matches": [{"name": n, "description": d} for _, n, d in top]})
+    return json.dumps({
+        "matches": [{"name": n, "description": d} for _, n, d in top],
+        "how_to_call": "these aren't attached — call_tool(name=..., args=...) for any of them, not the name directly",
+    })
