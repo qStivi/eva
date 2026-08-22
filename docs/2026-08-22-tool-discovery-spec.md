@@ -107,7 +107,24 @@ lines). Whenever a rejected tool isn't a real *rule* violation (no
 `hint_lines` from Letta's own `ToolRulesSolver`) and `call_tool`/`search_tools`
 are both in the agent's valid set, appends a hint pointing straight at
 `call_tool(name=..., args={...})`. General — not hardcoded to
-`delegate_to_harness`, applies to any gated tool. Verified the patched logic
-renders correctly and confirmed the container is running the patched file;
-not yet confirmed end-to-end through a real agent turn (LM Studio, the local
-model backend, was down at the time — unrelated to this patch).
+`delegate_to_harness`, applies to any gated tool.
+
+**Confirmed live end-to-end (2026-08-22, after migrating eva-spike off
+LM Studio onto `mistral-small-latest`):** forced the exact original failure
+(told her explicitly to call `delegate_to_harness` directly, bypassing
+`call_tool`) — got the hint verbatim in the tool return. Next turn, unprompted
+("ok, now actually get that file created for real"), she switched to
+`call_tool(name='delegate_to_harness', args={'task': ...})` on her own and it
+worked. Real self-correction, not just a rendering check.
+
+**Unrelated gotcha hit during that same migration**, worth remembering:
+switching an agent's model to Mistral while its message history still has
+old `reasoning_content` from a different model (qwen3-8b, via LM Studio) 422s
+— `extra_forbidden` on `reasoning_content`, same failure family as the
+2026-08-13 Mistral BYOK bug and the harness `thinking` bug, but a third
+distinct field this time, coming from historical message replay rather than
+a live request. Not patched (Letta's serialization would need a fix to strip
+it per-provider) — worked around by resetting eva-spike's message history
+(`PATCH /v1/agents/{id}/reset-messages`), reasonable since it's the
+throwaway test agent. Anyone else migrating an agent's provider mid-
+conversation should expect this if the prior model wrote reasoning content.
