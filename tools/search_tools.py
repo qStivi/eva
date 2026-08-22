@@ -55,7 +55,16 @@ def search_tools(query: str) -> str:
         "'area'/'floor' if the name alone is ambiguous), like a voice command "
         "would. It does NOT take 'entity_id' — passing one gets silently "
         "ignored and can make matching worse (falls back to matching "
-        "everything in that domain), not better."
+        "everything in that domain), not better. Area names in this house are "
+        "in ENGLISH (e.g. 'Bathroom') even when the device's own name is in "
+        "German ('Thermostat Bad') — don't guess a translated/German area name, "
+        "read the real one from a prior error's disambiguation data if you're "
+        "not sure, don't invent one. If a call comes back DUPLICATE_NAME/"
+        "MULTIPLE_TARGETS and this tool accepts a 'domain' filter (check its "
+        "schema — not all of them do), add it to narrow the match instead of "
+        "just retrying the same call — a single physical device often has many "
+        "HA sub-entities (switches, sensors) sharing its name prefix across "
+        "different domains, which an unscoped intent can't tell apart."
     )
     for name in by_name:
         if name.startswith("Hass"):
