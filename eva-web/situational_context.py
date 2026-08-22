@@ -72,9 +72,24 @@ def build() -> str:
     individual failure. A dead HA integration or slow network must never
     block the actual chat message from going through.
     """
+    now = datetime.datetime.now()
+    # Confirmed live (2026-08-22): asked to report this block's contents, Eva
+    # reached for conversation_search instead of just reading her own
+    # context, found her own earlier (fabricated) claim about it, and cited
+    # that as current — repeatedly, across several turns, even after being
+    # told to check the real data. This guard line exists specifically to
+    # short-circuit that: state plainly, right next to the data itself, that
+    # this block IS the current truth and nothing else (her own past
+    # messages included) can be more current than it.
     lines = [
-        "Right now: "
-        + datetime.datetime.now().strftime("%A, %B %-d, %Y, %-I:%M %p") + "."
+        f"[This block was refreshed at {now.strftime('%-I:%M:%S %p')} today — "
+        "everything below is the current truth for these fields, full stop. "
+        "Nothing said earlier in this conversation, including anything you "
+        "said yourself, is more current than this. Don't use "
+        "conversation_search to check these fields — it only finds old "
+        "messages, never this block, and an old message is stale by "
+        "definition. Just read the lines below directly.]",
+        "Right now: " + now.strftime("%A, %B %-d, %Y, %-I:%M %p") + ".",
     ]
 
     base, token = _read_ha_env()
