@@ -47,23 +47,22 @@ there:
 
 ## 2. `spawn_task` — generic background jobs
 
-Today every job kind is bespoke (`research`, and Phase 2's `claude`), each
+Today every job kind is bespoke (`research`, and Phase 2's `harness`), each
 with its own executor module and its own tool
-(`delegate_to_claude`/`research_task`). A `spawn_task(command, ...)` tool
+(`delegate_to_harness`/`research_task`). A `spawn_task(command, ...)` tool
 would let Eva run an arbitrary host command as a background job without a
 new executor per use case — e.g. `spawn_task("rpm-ostree status")` instead
 of needing a purpose-built tool for every possible host query.
 
 - Needs its own `pending_approval` treatment too — arguably *more*
-  cautious than `claude` jobs, since a bare shell command has none of Claude
-  Code's own permission-prompt layer as a second line of defense (the plan's
-  Security posture section names that as one of the two safety layers for
-  `claude` jobs specifically). Worth deciding whether `spawn_task` inherits
-  the same trust-allowlist mechanism (item 4 below) as a hard requirement
-  rather than an optional refinement, given it has one fewer guardrail than
-  `delegate_to_claude`.
-- Executor shape matches `claude_code.py`'s (timeout, captured
-  stdout/stderr/exit code, workdir) minus the `claude`-specific bits.
+  cautious than `harness` jobs, since a bare shell command has neither
+  DeepSeek Harness's own tooling nor the Phase 2 moderation pre-check as a
+  second line of defense (see Phase 2's Safety layer section). Worth
+  deciding whether `spawn_task` inherits the same trust-allowlist mechanism
+  (item 4 below) as a hard requirement rather than an optional refinement,
+  given it has fewer guardrails than `delegate_to_harness`.
+- Executor shape matches `harness.py`'s (timeout, captured stdout/exit
+  code, workdir) minus the harness-specific bits.
 
 ## 3. Concurrency / queueing
 
@@ -79,7 +78,7 @@ job kinds exist side by side:
   worker) around `_inject`/`_inject_and_get_reply`, so result turns land in
   Eva's conversation strictly one at a time regardless of how many executor
   threads are running concurrently.
-- **Execution concurrency** — a separate question of whether two `claude -p`
+- **Execution concurrency** — a separate question of whether two `harness`
   (or `spawn_task`) jobs should be allowed to run against the host
   filesystem at the same time at all (flagged as open in the Phase 2 spec).
   If the answer ends up "no," this item is where an actual job queue (cap
@@ -92,12 +91,12 @@ job kinds exist side by side:
 Refinement to Phase 2's per-job approval gate, named directly in the plan's
 Security posture "future hardening" list:
 
-- **Plan-only/dry-run default** — `claude -p` supports a plan mode; wiring
-  the executor to default there and only escalate to real execution once
-  *that* plan is separately approved would turn one approval into two
-  (approve running Claude at all, then approve what it proposes to actually
-  do), trading speed for a tighter loop. Worth exposing as a per-job or
-  global toggle rather than hardcoding one way.
+- **Plan-only/dry-run default** — if DeepSeek Harness's own plan-mode
+  proves reliable (or `claude -p`'s, if that escalation path ever gets
+  built), wiring the executor to default there and only escalate to real
+  execution once *that* plan is separately approved would turn one approval
+  into two, trading speed for a tighter loop. Worth exposing as a per-job
+  or global toggle rather than hardcoding one way.
 - **Trust allowlists** — some task *kinds* or workdirs could be marked
   "always auto-approve" once you've seen enough of them go fine (e.g.
   read-only research-style asks in `~/eva-workspace/`), while anything
