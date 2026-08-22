@@ -29,6 +29,24 @@ def call_tool(name: str, args: dict = None) -> str:
     if not tool:
         return "(tool %r isn't registered in Letta)" % name
 
+    # Catch a wrong/misremembered argument name here, before it ever reaches
+    # Letta's own sandbox — confirmed live (2026-08-22) that an unrecognized
+    # key doesn't fail cleanly there: Letta's generated wrapper references the
+    # raw arg name as a bare Python identifier before checking it's a real
+    # declared parameter, so a typo'd key crashes with a confusing
+    # "NameError: name 'x' is not defined" instead of a message that's
+    # actually useful to self-correct from. Only checked for our own
+    # plain-python tools (json_schema shape is ours to trust); external_mcp
+    # tools validate on the MCP server's own side.
+    schema = tool.get("json_schema") or {}
+    props = (schema.get("parameters") or {}).get("properties")
+    if tool.get("tool_type") != "external_mcp" and isinstance(props, dict):
+        bad = [k for k in (args or {}) if k not in props]
+        if bad:
+            return ("(call_tool: %r doesn't take an argument named %s — valid "
+                     "arguments are: %s)" % (name, ", ".join(map(repr, bad)),
+                                              ", ".join(sorted(props)) or "(none)"))
+
     try:
         if tool.get("tool_type") == "external_mcp":
             # MCP tools run straight against their server — no agent attachment
