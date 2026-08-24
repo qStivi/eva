@@ -92,12 +92,14 @@ doesn't block the migration.
 From the desktop (`qstivi@<desktop>`) to the new CT — do this over SSH/SCP directly
 between the two boxes, not through any intermediate storage:
 
+The 3 Letta core patch files (`url_validation.py`, `openai_client.py`, `helpers.py`) are
+now in the repo under `letta-patches/` — no secrets in them, so `homelab-ct-setup.sh`
+already copies them into `~/.config/letta/` for you. Only the actual secrets below still
+need a manual scp:
+
 | Source (desktop) | Destination (CT) | Contents |
 |---|---|---|
 | `~/.config/letta/letta.env` | same path | `OPENAI_API_KEY` (now the Mistral key, see Step "Already done"), `OPENAI_API_BASE` (obsolete after Step 2 for embeddings, but harmless to leave — nothing else reads it once LM Studio's fully off eva's path) |
-| `~/.config/letta/url_validation.py` | same path | Loopback/private-IP MCP patch |
-| `~/.config/letta/openai_client.py` | same path | Mistral `user`-field-stripping patch |
-| `~/.config/letta/helpers.py` | same path | `ToolConstraintError` hint patch |
 | `~/.config/eva-task-runner/eva-task-runner.env` | same path | Runner port, Letta host, agent id, SearXNG URL, `RESEARCH_CLOUD_MODEL`, `FCM_SERVICE_ACCOUNT_FILE` path |
 | the file `FCM_SERVICE_ACCOUNT_FILE` points at | same path | Firebase service-account JSON (push notifications) |
 | `~/.config/eva-web/eva-web.env` | same path | Port/host, Letta host, agent id, basic-auth creds, `EVA_API_KEY` |

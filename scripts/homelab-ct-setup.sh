@@ -52,14 +52,21 @@ else
     echo "  ~/projects/eva already exists, skipping clone"
 fi
 
+echo "== Letta core patches (from the repo, no secrets in these) =="
+cp ~/projects/eva/letta-patches/url_validation.py \
+   ~/projects/eva/letta-patches/openai_client.py \
+   ~/projects/eva/letta-patches/helpers.py \
+   ~/.config/letta/
+echo "  copied to ~/.config/letta/ — see letta-patches/README.md for what each does"
+
 cat <<'EOF'
 
 == Done with the automatable part. Manual steps remain — see
    docs/2026-08-24-homelab-how-to-run.md for the full checklist:
      - copy the Quadlet unit files + systemd user units from the repo/desktop
      - copy secrets (letta.env, eva-task-runner.env, eva-web.env,
-       cloudflared/eva.env, the FCM service-account JSON, the 3 Letta patch
-       files) — none of these are in git, they need a manual scp
+       cloudflared/eva.env, the FCM service-account JSON) — none of these
+       are in git, they need a manual scp
      - migrate Letta's Postgres data (pg_dump / restore)
      - enable + start every systemd user unit
      - verify, then cut over
