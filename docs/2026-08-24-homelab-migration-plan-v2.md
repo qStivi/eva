@@ -24,7 +24,35 @@ Revises `docs/2026-08-24-homelab-migration-plan.md`. Changes from v1 are called 
 
 **SearXNG MCP — also native, not a container.** `searxng-mcp` turned out to be `docker.io/isokoliuk/mcp-searxng` on the desktop, which is just a container wrapper around the `mcp-searxng` npm package (same author, `ihor-sokoliuk`/`isokoliuk`) — installed natively via `npm install -g mcp-searxng` (npm prefix scoped to `eva`'s home, since the global prefix from the NodeSource install isn't writable by non-root). Runs standalone in HTTP-transport mode (`MCP_HTTP_PORT=3010`, loopback-only by default, matching the desktop's posture) rather than the default stdio-spawned-by-client mode. The already-restored DB's `mcp_server` table already pointed at `http://127.0.0.1:3010/mcp` from the original dump — no re-registration needed, just had to actually run something listening there.
 
-**Not yet done:** the actual cutover (desktop is still the live/authoritative system — CT 141 is fully up and independently verified, but running against the mid-August snapshot, not live data).
+## Cutover — complete (2026-08-24, same day)
+
+No re-dump was needed at cutover time — the desktop's eva stack was already stopped
+before the pg_dump snapshot went stale (confirmed no new data existed between the dump
+and the cutover). Sequence actually followed:
+
+1. Desktop services confirmed stopped (`cloudflared-eva`, `eva-task-runner`, `eva-web`,
+   `letta`) — done on the desktop side, not from this session.
+2. `cloudflared-eva.service` restarted on CT 141 for a clean connection set. Before the
+   restart, one of the tunnel's 4 redundant connections (`connIndex=2`) was repeatedly
+   flapping/retrying — after the desktop was confirmed down, a restart produced a clean
+   0–3 connection registration with zero retries, confirming the flapping had been the
+   desktop's `cloudflared` contending for the same connection slot (both processes were
+   briefly live on the same `TUNNEL_TOKEN`), not a problem with the CT 141 setup itself.
+3. Final health sweep: all 6 units `active running`; `eva-web`'s authenticated
+   `/api/health` returned `{"letta": true, ...}`; `https://eva.qstivi.com/v1/health/`
+   reachable with a stable connection set (Cloudflare Access's own 403 challenge page —
+   expected, proves the tunnel reaches CT 141's origin correctly).
+4. **User-confirmed working** via the actual Flutter app / `eva.qstivi.com` — a real
+   message round-tripped through CT 141 as the sole live instance.
+
+**Follow-up (not yet done):** disable (not delete) the desktop's units so they can't
+accidentally restart and contend with the CT again:
+```bash
+systemctl --user disable cloudflared-eva eva-task-runner eva-web letta
+```
+Per the original Phase 6 cleanup: also remove `eva-lmstudio-status.service` and the
+Flutter app's LM Studio dependency, and check whether desktop LM Studio is still needed
+for ComfyUI/TTS before fully retiring it.
 
 ### Gotchas found during execution (fold into any future rerun)
 
