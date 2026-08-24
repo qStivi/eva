@@ -2,6 +2,34 @@
 
 Revises `docs/2026-08-24-homelab-migration-plan.md`. Changes from v1 are called out inline as **[CHANGED]**.
 
+## Progress log (updated as execution proceeds)
+
+**Done:**
+- CT 141 provisioned — **Ubuntu 24.04** specifically (not Debian 13, see note below), unprivileged, no `nesting`/`keyctl` features, confirmed `systemctl is-system-running` → `running` with zero failed units.
+- `eva` user created (non-root, lingering enabled via `loginctl enable-linger eva`) — the account everything runs as.
+- SSH access set up: Bazzite (desktop) holds the private key and initiates connections *to* CT 141 as `eva`; CT 141 never connects out to the desktop. Dedicated keypair, not the shared `root@proxmox` key.
+- Base tooling installed: Python 3.12 + venv + pip + `python3-cryptography`, git, Node.js 22 (NodeSource) + `@deepseek-ai/dsh`, native PostgreSQL 16, native `cloudflared` (Cloudflare's apt repo).
+- Secrets/config staged from the desktop (via the Bazzite→CT SSH path) under `~/desktop-secrets-STAGING/` on CT 141: `letta.env`, `eva-task-runner.env` + FCM service-account JSON, `eva-web.env`, `cloudflared/eva.env`, `searxng/settings.yml`.
+- Live `pg_dump -F c` (custom format) of the desktop's `letta` database taken with **zero downtime** — desktop eva was never stopped. Staged alongside the other secrets.
+- Native Postgres `letta` role + `letta` database created (fresh generated password, not the container image's trivial default `letta`/`letta`).
+- Dump restored into native Postgres — verified: 4 agents, 1047 messages, 76 memory blocks, all with real timestamps from the source. `archival_passages`/`source_passages` legitimately empty (matches source; eva's memory relies on the block/conversation system, not archival vector search).
+- Letta 0.16.8 installed via pip into `eva`'s venv, all 3 `letta-patches/` applied on top (see below), configs wired into `~/.config/*` on CT 141.
+- **Smoke-tested**: `letta server` started manually against the restored DB, confirmed healthy via `/v1/health/` and `/v1/agents/` — real restored agent data (`eva-sleeptime`, etc.) served correctly. Stopped afterward (not yet a proper systemd service).
+
+**Not yet done:** systemd `--user` units for any service, Mistral embedding validation against the restored data, task-runner/eva-web/SearXNG/cloudflared bring-up, the actual cutover (desktop still the live system).
+
+### Gotchas found during execution (fold into any future rerun)
+
+- **Debian 13 (systemd 257) fails clean boot in unprivileged LXC without `nesting`** on this Proxmox version — confirmed via `systemctl is-system-running` → `degraded`, with `tmp.mount`/`run-lock.mount`/`dev-mqueue.mount` all failing. **Ubuntu 24.04 (systemd 255) boots clean with zero feature flags** — empirically verified, not assumed. This is *not* evidence nesting is required in general (every CT on this host has `nesting=1` regardless of workload, including plain-service CTs like MariaDB — almost certainly just Proxmox's UI/tteck-script default, not a per-CT necessity). **Use Ubuntu 24.04 for CT 141, not Debian 13.**
+- **`pgvector` isn't installed by default** — needed both the Postgres extension (`postgresql-16-pgvector` package) and the Python/SQLAlchemy package (`pip install pgvector`). Neither is a `letta` dependency pulled in automatically.
+- **The vector extension must be created inside the `letta` schema**, not `public` — the dump's tables reference the type as `letta.vector`. `CREATE EXTENSION vector SCHEMA letta;`, not a bare `CREATE EXTENSION vector;`. Restoring into the wrong schema fails silently on the two passages tables and cascades into FK/index errors that are easy to misread as a bigger problem.
+- **`asyncpg` is also required** and not pulled in automatically — Letta's async ORM layer imports it directly even though `settings.py`'s URI-building helper references a `pg8000`-style driver string.
+- Postgres dump/restore files must be copied somewhere `postgres`-readable before `pg_restore` — `eva`'s home directory is `700`, invisible to the `postgres` system user.
+
+## Notes on Postgres credentials
+
+Desktop's bundled Letta-container Postgres uses a hardcoded image default (`letta`/`letta`, both user and password) — not something Stephan chose, baked into the image's own env. The native CT 141 instance was set up with a freshly generated password instead (not the trivial default), stored only in `~/.config/letta/letta.env` (`LETTA_PG_PASSWORD`), `600` permissions, `eva`-owned. `LETTA_PG_DB`/`_USER`/`_HOST`/`_PORT` set alongside it — env-prefix confirmed as `LETTA_` from Letta's own `settings.py` (`SettingsConfigDict(env_prefix="letta_")`).
+
 ## Primary Objective
 
 Move eva's backend services from a gaming desktop (unreliable, goes down on reboot/sleep) to
@@ -86,8 +114,11 @@ upstream on every Letta version bump.
 ## Detailed Migration Steps
 
 ### Phase 1: Infrastructure Provisioning
-- `pct create` CT 141 (next free ID, confirmed free), Debian 13 or Ubuntu 24.04 (both templates
+- `pct create` CT 141 (next free ID, confirmed free), **Ubuntu 24.04 specifically** (template
   already cached locally — no download needed), **unprivileged, no `nesting`/`keyctl` flags**.
+  Debian 13's newer systemd (257) fails a clean boot without `nesting` on this Proxmox
+  version — empirically confirmed (see Progress log), so this isn't a coin-flip between the
+  two templates.
 - Install: Python 3 + venv, `postgresql`, Node.js + `@deepseek-ai/dsh`, `cryptography`, git,
   and `cloudflared` (native `.deb`/systemd unit — see Cloudflare's install docs for the
   Debian/Ubuntu repo).
