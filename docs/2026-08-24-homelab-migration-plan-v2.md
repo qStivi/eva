@@ -16,7 +16,15 @@ Revises `docs/2026-08-24-homelab-migration-plan.md`. Changes from v1 are called 
 - Letta 0.16.8 installed via pip into `eva`'s venv, all 3 `letta-patches/` applied on top (see below), configs wired into `~/.config/*` on CT 141.
 - **Smoke-tested**: `letta server` started manually against the restored DB, confirmed healthy via `/v1/health/` and `/v1/agents/` — real restored agent data (`eva-sleeptime`, etc.) served correctly. Stopped afterward (not yet a proper systemd service).
 
-**Not yet done:** systemd `--user` units for any service, Mistral embedding validation against the restored data, task-runner/eva-web/SearXNG/cloudflared bring-up, the actual cutover (desktop still the live system).
+**Now also done:**
+- `eva`/`eva-sleeptime`'s `embedding_config` PATCHed to Mistral (matching the already-proven `eva-spike` shape) via Letta's own REST API, then validated with a real `POST .../archival-memory` call — confirmed a genuine 1024-dim non-zero Mistral vector came back, not just a `200`. Test passage deleted after.
+- `LETTA_ENCRYPTION_KEY` generated and set — secrets in Letta's own DB (e.g. the Mistral API key) are now AES-256-GCM encrypted at rest going forward (opportunistic: old plaintext rows are untouched, new writes get encrypted, no migration step needed).
+- All 6 systemd `--user` units deployed and verified live: `letta`, `eva-web`, `eva-task-runner`, `searxng`, `searxng-mcp`, `cloudflared-eva`. `eva-web`'s authenticated `/api/health` returns `{"letta": true, ...}`; `eva-task-runner` bound loopback-only on `:8286` as designed; SearXNG returns real JSON search results; the MCP bridge (`mcp-searxng`, installed natively via npm — see below) is visible to Letta via `/v1/tools/mcp/servers/searxng/tools`; `cloudflared` proven live end-to-end with a real request through `eva.qstivi.com` (got a genuine Cloudflare Access 403 challenge page back, not a tunnel error — confirms the tunnel is correctly routing to the CT's origin).
+- `eva-task-runner`'s `FCM_SERVICE_ACCOUNT_FILE` path corrected from the desktop's `/home/qstivi/...` to CT 141's `/home/eva/...`.
+
+**SearXNG MCP — also native, not a container.** `searxng-mcp` turned out to be `docker.io/isokoliuk/mcp-searxng` on the desktop, which is just a container wrapper around the `mcp-searxng` npm package (same author, `ihor-sokoliuk`/`isokoliuk`) — installed natively via `npm install -g mcp-searxng` (npm prefix scoped to `eva`'s home, since the global prefix from the NodeSource install isn't writable by non-root). Runs standalone in HTTP-transport mode (`MCP_HTTP_PORT=3010`, loopback-only by default, matching the desktop's posture) rather than the default stdio-spawned-by-client mode. The already-restored DB's `mcp_server` table already pointed at `http://127.0.0.1:3010/mcp` from the original dump — no re-registration needed, just had to actually run something listening there.
+
+**Not yet done:** the actual cutover (desktop is still the live/authoritative system — CT 141 is fully up and independently verified, but running against the mid-August snapshot, not live data).
 
 ### Gotchas found during execution (fold into any future rerun)
 
