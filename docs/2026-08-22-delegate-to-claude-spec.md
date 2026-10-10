@@ -1,5 +1,7 @@
 # Delegate-to-harness + HITL approval — spec
 
+> **Update 2026-10-10 — Claude Code decommissioned.** The deferred `claude -p` escalation option mentioned below is obsolete. DeepSeek Harness stays the executor; its model backend remains pluggable (Mistral API today, local or other OpenAI-compatible models possible).
+
 _Design session, 2026-08-22. This is Phase 2 of the "with hands" arc
 ([full plan](2026-07-22-EVA-WITH-HANDS-PLAN.md), PR #7, merged docs-only,
 nothing built yet). Phase 0 (sleeptime) and Phase 1 (the `eva-task-runner`

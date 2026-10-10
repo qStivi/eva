@@ -5,6 +5,8 @@ work, running it in the background, and reporting back — plus sleep-time memor
 consolidation. Supersedes the three loose bullets under "The big arc" in
 [ROADMAP.md](ROADMAP.md)._
 
+> **Update 2026-10-10 — Claude Code decommissioned.** `claude -p` is no longer the planned executor. Phase 2 was built 2026-08-22 on the model-agnostic DeepSeek Harness with Mistral models — see [2026-08-22-delegate-to-claude-spec.md](2026-08-22-delegate-to-claude-spec.md). The `claude -p` specifics below are historical; the spine, HITL gate, and background-work design carry over.
+
 ## The arc, in one line
 
 Give Eva **hands** (she can do real work, not just talk), a **background** (that
