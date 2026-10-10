@@ -2,7 +2,7 @@
 
 **Project knowledge lives on Confluence.** The [Eva Project Overview](https://qstivi.atlassian.net/wiki/spaces/HOME/pages/20676609/Eva+qDiaryAssistant+Project+Overview) page is the single source of truth for vision, architecture, status, roadmap, and research.
 
-This folder holds engineering material used by Claude Code sessions: date-stamped specs and plans, working logs, runbooks, and research clippings. Nothing here is maintained as a project-level roadmap anymore — keep those updates on Confluence.
+This folder holds engineering material for coding-agent sessions: date-stamped specs and plans, working logs, runbooks, and research clippings. Nothing here is maintained as a project-level roadmap anymore — keep those updates on Confluence.
 
 ## Current
 
@@ -22,3 +22,7 @@ This folder holds engineering material used by Claude Code sessions: date-stampe
 - `STARTUP.md`, `SKILL_FILE_SYSTEM.md`, `TIME_LOG.md`, `2026-06-13-STATUS.md`, `2026-06-REVIEW.md` — dated/historical; check the date before relying on them
 
 The character-first principles and the two-track memory idea from the FastAPI era carry over; implementation details in the superseded files do not.
+
+## Claude Code references
+
+Claude Code is no longer used (2026-10-10). References to it — e.g. `delegate_to_claude` / `claude -p` in the "Eva with hands" plans, `CLAUDE.md`, `.claude/` config — are historical; re-evaluate the executor choice before implementing those phases.
