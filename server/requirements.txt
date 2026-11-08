@@ -13,7 +13,7 @@ redis>=5.0.0
 
 # Vector Database
 chromadb>=0.4.0
-sentence-transformers>=2.2.0  # For semantic embeddings
+sentence-transformers>=6.2.0  # For semantic embeddings
 
 # LLM
 openai>=1.0.0  # OpenAI API for testing/development
