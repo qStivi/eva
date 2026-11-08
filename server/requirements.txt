@@ -19,7 +19,7 @@ sentence-transformers>=2.2.0  # For semantic embeddings
 openai>=1.0.0  # OpenAI API for testing/development
 transformers>=4.36.0
 torch>=2.1.0
-accelerate>=0.25.0
+accelerate>=1.15.0
 bitsandbytes>=0.41.0  # For 4-bit quantization
 sentencepiece>=0.1.99  # For Phi-3 tokenizer
 
