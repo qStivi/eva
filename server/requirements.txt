@@ -33,7 +33,7 @@ python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 
 # Terminal Interface
-prompt-toolkit>=3.0.52
+prompt-toolkit>=3.0.53
 rich>=14.1.0
 
 # Development
